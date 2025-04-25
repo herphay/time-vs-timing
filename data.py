@@ -1,10 +1,37 @@
 import yfinance
+from dataclasses import dataclass
 from datetime import datetime
 import sqlite3
 import pandas as pd
 
+@dataclass
+class TickerInfo:
+    ticker:      str
+    Asset_Class: str
+    Sub_Class:   str
+    Benchmark:   str
+
 def main() -> None:
     ...
+
+
+def daily_scrapper() -> None:
+    """
+    Function to scrape and append all the new daily price data of 
+    a pre-defined list of securities that act as benchmarks for 
+    certain asset class.
+    """
+    benchmark_tickers = [
+        TickerInfo(
+            ticker='^GSPC',
+            Asset_Class='Equities',
+            Sub_Class='Global Equities (All Cap)',
+            Benchmark='FTSE Global All Cap Index'
+        )
+    ]
+    
+    for ticker in benchmark_tickers:
+        ticker_scrapper(ticker)
 
 
 def ticker_scrapper(ticker: str) -> None:
