@@ -6,7 +6,12 @@ import pandas as pd
 def main() -> None:
     ...
 
-def ticker_scrapper(ticker: str):
+
+def ticker_scrapper(ticker: str) -> None:
+    """
+    Scrape Yahoo Finance for the historical data for a specific ticker.
+    Only data that has not yet been scrapped before (not in database) will be added.
+    """
     # today = datetime.today().strftime('%Y-%m-%d')
     latest_date = pull_ticker_data(ticker, cols='MAX(date)')
     latest_date = latest_date[0][0] if len(latest_date) == 1 else None
