@@ -29,7 +29,7 @@ def daily_scrapper() -> None:
             Benchmark='FTSE Global All Cap Index'
         )
     ]
-    
+
     for ticker in benchmark_tickers:
         ticker_scrapper(ticker)
 
@@ -92,14 +92,21 @@ def pull_ticker_id(ticker: str) -> int | None:
         return result[0] if result is not None else None
 
 
-def pull_ticker_data(ticker: str, cols: str | None = None) -> list:
+def pull_ticker_data(ticker: str, 
+                     cols: str | None = None,
+                     start: str | None = None,
+                     end: str | None = None) -> list:
     """
     ticker: str
     cols: str
         Must be in format 'col1, col2, col3'
+    start/end: str
+        ISO 8601 (YYYY-MM-DD) format. Selecting [start:end) similar to yfinance
+        Defaults to earliest/latest dates if None
     """
-    if not cols:
-        cols = '*'
+    if not cols: cols = '*'
+    if not start: start = '0'
+    if not end: end = '9'
     with sqlite3.connect('historical_data.db') as con:
         results = con.execute(f" \
                         SELECT {cols} \
@@ -107,6 +114,8 @@ def pull_ticker_data(ticker: str, cols: str | None = None) -> list:
                         WHERE ticker_id = (SELECT ticker_id \
                                            FROM tickers \
                                            WHERE ticker = ?) \
+                        AND date >= ? \
+                        AND date < ? \
                     ", (ticker,))
         return results.fetchall()
     
