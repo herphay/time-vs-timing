@@ -1,8 +1,9 @@
 import yfinance
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 import sqlite3
 import pandas as pd
+import time
 
 @dataclass
 class TickerInfo:
@@ -22,24 +23,32 @@ def daily_scrapper() -> None:
     a pre-defined list of securities that act as benchmarks for 
     certain asset class.
     """
-    benchmark_tickers = get_index_list()
+    benchmark_tickers = [ticker.ticker for ticker in get_index_list()]
 
     for ticker in benchmark_tickers:
-        ticker_scrapper(ticker)
+        if ticker_scrapper(ticker):
+            time.sleep(2.5)
+    print(f'\n########## Database updated for all {len(benchmark_tickers)} indices ##########')
 
 
-def ticker_scrapper(ticker: str) -> None:
+def ticker_scrapper(ticker: str) -> bool:
     """
     Scrape Yahoo Finance for the historical data for a specific ticker.
     Only data that has not yet been scrapped before (not in database) will be added.
     """
-    # today = datetime.today().strftime('%Y-%m-%d')
+    today = datetime.today().strftime('%Y-%m-%d')
     latest_date = pull_ticker_data(ticker, cols='MAX(date)')
-    latest_date = latest_date[0][0] if len(latest_date) == 1 else None
+    latest_date = (datetime.strptime(latest_date[0][0], '%Y-%m-%d') + 
+                   timedelta(days=1)).strftime('%Y-%m-%d') if \
+                  len(latest_date) == 1 else None
+    if latest_date >= today:
+        print(f'{ticker} data has already been updated til {today}, no need to update')
+        return False
 
     new_data = get_ticker_history_yfin(ticker, start=latest_date)
     new_data = new_data.reset_index()
     new_data['Date'] = new_data['Date'].dt.strftime('%Y-%m-%d')
+    time_range = f'{'earliest' if not latest_date else latest_date} to {today} (not incl.)'
 
     if not (ticker_id := pull_ticker_id(ticker)):
         add_ticker(ticker)
@@ -53,9 +62,11 @@ def ticker_scrapper(ticker: str) -> None:
                          'Low', 'Close', 'Adj Close', 'Volume',
                           'Dividends', 'Stock Splits']]
     
-    print(list(new_data.itertuples(index=False, name=None)))
+    # print(list(new_data.itertuples(index=False, name=None)))
 
     push_ticker_data(list(new_data.itertuples(index=False, name=None)))
+    print(f'Successfully updated database with {time_range} daily price data for ticker: {ticker}')
+    return True
 
 
 def push_ticker_data(data: list[tuple]) -> None:
@@ -111,7 +122,7 @@ def pull_ticker_data(ticker: str,
                                            WHERE ticker = ?) \
                         AND date >= ? \
                         AND date < ? \
-                    ", (ticker,))
+                    ", (ticker, start, end))
         return results.fetchall()
     
 
