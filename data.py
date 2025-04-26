@@ -77,6 +77,7 @@ def push_ticker_data(data: list[tuple]) -> None:
 def add_ticker(ticker: str) -> None:
     with sqlite3.connect('historical_data.db') as con:
         con.execute("INSERT INTO tickers (ticker) VALUES (?)", (ticker,))
+    print(f'ticker {ticker} added, please update the other attributes later')
 
 
 def pull_ticker_id(ticker: str) -> int | None:
@@ -126,7 +127,7 @@ def get_ticker_history_yfin(ticker: str, period=None, start=None, end=None) -> p
     return yfinance.Ticker(ticker).history(period=period, start=start, end=end, rounding=True, auto_adjust=False)
 
 
-def create_db() -> None:
+def db_initialize() -> None:
     """
     Create an SQLite3 database to store historical market data for selected securities.
     """
@@ -149,8 +150,12 @@ def create_db() -> None:
     """
     create_ticker_table = """
     CREATE TABLE IF NOT EXISTS tickers (
+        ticker_id INTEGER PRIMARY KEY,
         ticker TEXT NOT NULL UNIQUE,
-        ticker_id INTEGER PRIMARY KEY
+        asset_class TEXT,
+        sub_class TEXT,
+        benchmark TEXT,
+        remarks TEXT
         )
     """
     try:
@@ -165,6 +170,25 @@ def create_db() -> None:
     finally:
         if con:
             con.close()
+
+    # After database creation, load in the initial tickers
+    update_db_tickers(get_index_list())
+
+
+def update_db_tickers(tickers: list[TickerInfo]) -> None:
+    ticker_details = [
+        (ticker.ticker, ticker.Asset_Class, ticker.Sub_Class,
+         ticker.Benchmark, ticker.Remarks)
+        for ticker in tickers
+    ]
+
+    with sqlite3.connect('historical_data.db') as con:
+        con.executemany("""
+            INSERT INTO tickers (ticker, asset_class, 
+                                 sub_class, benchmark, 
+                                 remarks)
+                        VALUES (?, ?, ?, ?, ?)
+        """, ticker_details)
 
 
 def get_index_list() -> list[TickerInfo]:
