@@ -101,7 +101,7 @@ def pull_ticker_id(ticker: str) -> int | None:
 def pull_ticker_data(ticker: str, 
                      cols: str | None = None,
                      start: str | None = None,
-                     end: str | None = None) -> list:
+                     end: str | None = None) -> list[tuple]:
     """
     ticker: str
     cols: str
