@@ -28,9 +28,8 @@ def plot_day_range(ticker: str, start: str = None, end: str = None) -> None:
     # ax.plot(dates, (highs + lows)/2, linewidth=2)
 
     ### Manual tick location setting ###
-    bins = min(bins, len(dates))
     # Manual calc (round to int)
-    xidx = np.array([round(pos * (len(dates) - 1)/(bins - 1)) for pos in range(bins - 1)] + [len(dates) - 1])
+    xidx = get_date_idx(len(dates), bins)
     
     # Using Numpy linspace (round down to int)
     # x_idx2 = np.array(np.linspace(0, len(dates)-1, 21, dtype=int))
@@ -39,9 +38,9 @@ def plot_day_range(ticker: str, start: str = None, end: str = None) -> None:
     # ax.tick_params('x', rotation=90)   # redundant, another way to set rotation
     # fig.autofmt_xdate()                # Auto rotate dates but does not properly increase tick gap
 
-    plt.title(f'Daily price range against time for: {ticker}')
-    plt.xlabel('Dates')
-    plt.ylabel('Price')
+    ax.set_title(f'Daily price range against time for: {ticker}')
+    ax.set_xlabel('Dates')
+    ax.set_ylabel('Price')
 
     # plt.show(block=False)
 
@@ -71,17 +70,21 @@ def plot_composite(ticker: str, start: str = None, end: str = None) -> None:
     # plotting a NxM array in y-axis means plotting M lines with N datapoints each
     ax.plot(dates, opclo, label=['open', 'close'])
 
-    bins = min(len(dates), bins)
-    xidx = [round(pos * (len(dates) - 1)/(bins - 1)) for pos in range(bins - 1)] + [len(dates) - 1]
+    xidx = get_date_idx(len(dates), bins)
 
     ax.set_xticks(xidx, dates[xidx], rotation=45, ha='right')
 
-    plt.title(f'Daily price range and open/close prices against time for: {ticker}')
-    plt.xlabel('Dates')
-    plt.ylabel('Price')
-    plt.legend() # to show legend for lines
+    ax.set_title(f'Daily price range and open/close prices against time for: {ticker}')
+    ax.set_xlabel('Dates')
+    ax.set_ylabel('Price')
+    ax.legend() # to show legend for lines
 
     # plt.show(block=False)
+
+
+def get_date_idx(len: int, bins: int) -> list:
+    bins = min(bins, len)
+    return [round(pos * (len - 1) / (bins - 1)) for pos in range(bins - 1)] + [len - 1]
 
 if __name__ == '__main__':
     main()
