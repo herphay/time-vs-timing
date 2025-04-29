@@ -38,9 +38,7 @@ def plot_day_range(ticker: str, start: str = None, end: str = None) -> None:
     # ax.tick_params('x', rotation=90)   # redundant, another way to set rotation
     # fig.autofmt_xdate()                # Auto rotate dates but does not properly increase tick gap
 
-    ax.set_title(f'Daily price range against time for: {ticker}')
-    ax.set_xlabel('Dates')
-    ax.set_ylabel('Price')
+    set_ax_labels(ax, f'Daily price range against time for: {ticker}')
 
     # plt.show(block=False)
 
@@ -74,9 +72,7 @@ def plot_composite(ticker: str, start: str = None, end: str = None) -> None:
 
     ax.set_xticks(xidx, dates[xidx], rotation=45, ha='right')
 
-    ax.set_title(f'Daily price range and open/close prices against time for: {ticker}')
-    ax.set_xlabel('Dates')
-    ax.set_ylabel('Price')
+    set_ax_labels(ax, f'Daily price range and open/close prices against time for: {ticker}')
     ax.legend() # to show legend for lines
 
     # plt.show(block=False)
@@ -85,6 +81,16 @@ def plot_composite(ticker: str, start: str = None, end: str = None) -> None:
 def get_date_idx(len: int, bins: int) -> list:
     bins = min(bins, len)
     return [round(pos * (len - 1) / (bins - 1)) for pos in range(bins - 1)] + [len - 1]
+
+
+def set_ax_labels(ax: plt.Axes, 
+                  title: str, 
+                  xlabel: str = 'Dates', 
+                  ylabel: str = 'Price') -> None:
+    ax.set_title(title)
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+
 
 if __name__ == '__main__':
     main()
