@@ -3,6 +3,9 @@ import numpy as np
 from collections.abc import Iterator
 from data import pull_ticker_data
 
+# Global data definition
+bins = 21 # Number of x-axis ticks to display for charts
+
 def main() -> None:
     plot_day_range('VT', start='2025-01-01')
     plot_composite('VT', start='2025-01-01')
@@ -15,11 +18,13 @@ def plot_day_range(ticker: str, start: str = None, end: str = None) -> None:
     start/end: str
         ISO 8601 (YYYY-MM-DD)
     """
-    bins = 21
 
     # Obtain historical data used in plotting
     cols = ('date', 'high', 'low')
     raw_data = pull_ticker_data(ticker, cols=', '.join(cols), start=start, end=end)
+    if not raw_data:
+        print(f'No data fetched for ticket {ticker}')
+        return
     # zip(*raw_data) converts list of tuples (of rows) into list of tuples (of columns)
     data_dict = numpyfy_data(zip(cols, zip(*raw_data)))
 
@@ -49,10 +54,12 @@ def plot_composite(ticker: str, start: str = None, end: str = None) -> None:
     start/end: str
         ISO 8601 (YYYY-MM-DD)
     """
-    bins = 21
 
     cols = ('date', 'high', 'low', 'open', 'close')
     raw_data = pull_ticker_data(ticker, cols=', '.join(cols), start=start, end=end)
+    if not raw_data:
+        print(f'No data fetched for ticket {ticker}')
+        return
     data_dict = numpyfy_data(zip(cols, zip(*raw_data)))
     # Combine open and close data into 1 2-dim array
     # transpose to make it Nx2 array where N is num of dates
@@ -76,7 +83,7 @@ def plot_composite(ticker: str, start: str = None, end: str = None) -> None:
     # plt.show(block=False)
 
 
-def numpyfy_data(col_datas: Iterator[tuple[str, tuple]]) -> dict:
+def numpyfy_data(col_datas: Iterator[tuple[str, tuple]]) -> dict[str, np.ndarray]:
     """
     col_datas: zip object
         Expects a zip object combining column name with the corresponding time series
@@ -85,9 +92,12 @@ def numpyfy_data(col_datas: Iterator[tuple[str, tuple]]) -> dict:
             for col_name, col_data
             in col_datas}
 
-def get_date_idx(len: int, bins: int) -> list:
-    bins = min(bins, len)
-    return [round(pos * (len - 1) / (bins - 1)) for pos in range(bins - 1)] + [len - 1]
+def get_date_idx(length: int, bins: int) -> list[int]:
+    """Calculate evenly spaced index positions for chart plotting"""
+    bins = min(bins, length)
+    if bins == 1:
+        return [0]
+    return [round(pos * (length - 1) / (bins - 1)) for pos in range(bins - 1)] + [length - 1]
 
 
 def set_ax_labels(ax: plt.Axes, 
