@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
-from collections.abc import Iterator
+# from collections.abc import Iterator
 
 from data import pull_ticker_data
 
@@ -11,6 +11,8 @@ bins = 21 # Number of x-axis ticks to display for charts
 def main() -> None:
     plot_day_range('VT', start='2025-01-01', autodate=True)
     plot_composite('VT', start='2025-01-01', autodate=False)
+    plot_single('VT', 'close', start='2025-01-01', autodate=False)
+    plot_single('VT', 'open', start='2025-01-01', autodate=False)
     plt.show() # plt.show() only outside to ensure all plots can show together
 
 
@@ -63,6 +65,28 @@ def plot_composite(ticker: str, start: str | None = None, end: str | None = None
 
     # plt.show(block=False)
 
+
+def plot_single(ticker: str, 
+                col: str,
+                start: str | None = None, 
+                end: str | None = None, 
+                autodate: bool = True) -> None:
+    """
+    ticker: str
+    col: str
+        The single column to plot
+    start/end: str
+        ISO 8601 (YYYY-MM-DD)
+    autodate: bool
+        Whether we use matplotlib default date locator
+    """
+    cols = ('date', col)
+    data = get_plot_data(ticker, cols=cols, start=start, end=end, autodate=autodate)
+
+    ax = setup_plot_elements(data['date'], f'Daily closing price for: {ticker}', autodate=autodate)
+
+    ax.plot(data['date'], data[col], label=[col])
+    ax.legend()
 
 def get_plot_data(ticker: str, 
                   cols: tuple[str], 
