@@ -21,16 +21,11 @@ def plot_day_range(ticker: str, start: str = None, end: str = None) -> None:
 
     # Obtain historical data used in plotting
     cols = ('date', 'high', 'low')
-    raw_data = pull_ticker_data(ticker, cols=', '.join(cols), start=start, end=end)
-    if not raw_data:
-        print(f'No data fetched for ticket {ticker}')
-        return
-    # zip(*raw_data) converts list of tuples (of rows) into list of tuples (of columns)
-    data_dict = numpyfy_data(zip(cols, zip(*raw_data)))
+    data = get_plot_data(ticker, cols, start=start, end=end)
 
-    ax = setup_plot_elements(data_dict['date'], f'Daily price range against time for: {ticker}')
+    ax = setup_plot_elements(data['date'], f'Daily price range against time for: {ticker}')
     
-    ax.fill_between(data_dict['date'], data_dict['high'], data_dict['low'], alpha=.5, linewidth=0)
+    ax.fill_between(data['date'], data['high'], data['low'], alpha=.5, linewidth=0)
     # ax.plot(dates, (highs + lows)/2, linewidth=2)
 
     # plt.show(block=False) # For interactive mode but the moment the local function context ends, plot will also close
@@ -44,36 +39,58 @@ def plot_composite(ticker: str, start: str = None, end: str = None) -> None:
     """
 
     cols = ('date', 'high', 'low', 'open', 'close')
-    raw_data = pull_ticker_data(ticker, cols=', '.join(cols), start=start, end=end)
-    if not raw_data:
-        print(f'No data fetched for ticket {ticker}')
-        return
-    data_dict = numpyfy_data(zip(cols, zip(*raw_data)))
+    data = get_plot_data(ticker, cols, start=start, end=end)
+
     # Combine open and close data into 1 2-dim array
     # transpose to make it Nx2 array where N is num of dates
     # Essentially make each row correspond to a date, and 1st col is open, 2nd is close
-    opclo  = np.array([data_dict['open'], data_dict['close']]).T
+    opclo  = np.stack([data['open'], data['close']]).T
 
-    ax = setup_plot_elements(data_dict['date'], f'Daily price range and open/close prices against time for: {ticker}')
+    ax = setup_plot_elements(data['date'], f'Daily price range and open/close prices against time for: {ticker}')
 
-    ax.fill_between(data_dict['date'], data_dict['high'], data_dict['low'], alpha=0.5, linewidth=0)
+    ax.fill_between(data['date'], data['high'], data['low'], alpha=0.5, linewidth=0)
 
     # plotting a NxM array in y-axis means plotting M lines with N datapoints each
-    ax.plot(data_dict['date'], opclo, label=['open', 'close'])
+    ax.plot(data['date'], opclo, label=['open', 'close'])
 
     ax.legend() # to show legend for lines
 
     # plt.show(block=False)
 
 
-def numpyfy_data(col_datas: Iterator[tuple[str, tuple]]) -> dict[str, np.ndarray]:
+def get_plot_data(ticker: str, 
+                  cols: tuple[str], 
+                  start: str | None = None, 
+                  end: str | None = None) -> dict[str, np.ndarray]:
     """
-    col_datas: zip object
-        Expects a zip object combining column name with the corresponding time series
+    Pull the required plot data & process it into a dict of Numpy Arrays for each column
+
+    ticker: str     
+        Ticker which data is to be pulled
+    cols: tuple     
+        tuple of column names of which data is to be pulled
+    start/end: str
+        dates in ISO 8601 (YYYY-MM-DD) format to pull data from [start, end). Default to earliest/latest
     """
-    return {col_name: np.array(col_data)
-            for col_name, col_data
-            in col_datas}
+    raw_data = pull_ticker_data(ticker, ', '.join(cols), start=start, end=end)
+    if not raw_data:
+        print(f'No data fetched for ticket {ticker}')
+        return
+    # zip(*raw_data) converts list of tuples (of rows) into list of tuples (of columns)
+    raw_data = zip(*raw_data)         # Convert row data to col data
+    packed_data = zip(cols, raw_data) # Attach col name to each col data
+
+    return {col_name: np.array(col_data) for col_name, col_data in packed_data}
+
+##### No longer required after re-factoring all data processing to dedicated get_plot_data func #####
+# def numpyfy_data(col_datas: Iterator[tuple[str, tuple]]) -> dict[str, np.ndarray]:
+#     """
+#     col_datas: zip object
+#         Expects a zip object combining column name with the corresponding time series
+#     """
+#     return {col_name: np.array(col_data)
+#             for col_name, col_data
+#             in col_datas}
 
 def get_date_idx(length: int, bins: int) -> list[int]:
     """Calculate evenly spaced index positions for chart plotting"""
