@@ -103,9 +103,11 @@ def pull_ticker_data(ticker: str,
                      start: str | None = None,
                      end: str | None = None) -> list[tuple]:
     """
-    ticker: str
+    Pull historical data from the local database. Returns as rows.
+    
+    ticker: str    
     cols: str
-        Must be in format 'col1, col2, col3'
+        Must be in format 'col1, col2, col3'    
     start/end: str
         ISO 8601 (YYYY-MM-DD) format. Selecting [start:end) similar to yfinance
         Defaults to earliest/latest dates if None
