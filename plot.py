@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 # from collections.abc import Iterator
@@ -9,10 +10,10 @@ from data import pull_ticker_data
 bins = 21 # Number of x-axis ticks to display for charts
 
 def main() -> None:
-    plot_day_range('VT', start='2025-01-01', autodate=True)
-    plot_composite('VT', start='2025-01-01', autodate=False)
-    plot_single('VT', 'close', start='2025-01-01', autodate=False)
-    plot_single('VT', 'open', start='2025-01-01', autodate=False)
+    plot_day_range('VT', start='2025-01-01')
+    plot_composite('VT', start='2025-01-01')
+    plot_single('VT', 'close', start='2025-01-01')
+    plot_single('VT', 'open', start='2025-01-01')
     plt.show() # plt.show() only outside to ensure all plots can show together
 
 
@@ -184,7 +185,9 @@ def setup_plot_elements(dates: np.array,
         fig.autofmt_xdate(rotation=45, ha='right')
     else:
         ##### Manual tick location setting #####
-        ax.set_xlim(0, len(dates) - 1)
+        # treat dates as int index positions -> dates won't be spaced properly as non-trading days are missing
+        ax.set_xlim(0, len(dates) - 1)          
+        # ax.set_xlim(dates[0], dates[-1]) # This is for treating dates like dates, prereq of dates in datetime dtype
         # Manual calc (round to int)
         xidx = get_date_idx(len(dates), bins)
         
@@ -192,9 +195,14 @@ def setup_plot_elements(dates: np.array,
         # x_idx2 = np.array(np.linspace(0, len(dates)-1, 21, dtype=int))
 
         ax.set_xticks(xidx, dates[xidx], rotation=45, ha='right')
+        # Next row is for treating dates like dates, it will having the right date spacing (date spaced incl. non-trading days)
+        # But the tickers won't be spaced properly -> cause int spacing ignores non-trading days
+        # ax.set_xticks(dates[xidx], pd.Series(dates[xidx]).dt.strftime('%Y-%m-%d'), rotation=45, ha='right')
+
         # ax.tick_params('x', rotation=90)   # redundant, another way to set rotation
         # fig.autofmt_xdate()                # Auto rotate dates but does not properly increase tick gap
-
+    
+    fig.tight_layout() # To make plots fit nicely in plotted area, need to call fig by fig, not all at once at plt
     return ax
 
 
