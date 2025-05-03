@@ -17,7 +17,10 @@ def main() -> None:
     plt.show() # plt.show() only outside to ensure all plots can show together
 
 
-def plot_day_range(ticker: str, start: str | None = None, end: str | None = None, autodate: bool = True) -> None:
+def plot_day_range(ticker: str, 
+                   start: str | None = None, 
+                   end: str | None = None, 
+                   autodate: bool = True) -> None:
     """
     ticker: str
     start/end: str
@@ -30,7 +33,9 @@ def plot_day_range(ticker: str, start: str | None = None, end: str | None = None
     cols = ('date', 'high', 'low')
     data = get_plot_data(ticker, cols, start=start, end=end, autodate=autodate)
 
-    ax = setup_plot_elements(data['date'], f'Daily price range against time for: {ticker}', autodate=autodate)
+    ax = setup_plot_elements(data['date'], 
+                             f'Daily price range against time for: {ticker}', 
+                             autodate=autodate)
     
     ax.fill_between(data['date'], data['high'], data['low'], alpha=.5, linewidth=0)
     # ax.plot(dates, (highs + lows)/2, linewidth=2)
@@ -38,7 +43,10 @@ def plot_day_range(ticker: str, start: str | None = None, end: str | None = None
     # plt.show(block=False) # For interactive mode but the moment the local function context ends, plot will also close
 
 
-def plot_composite(ticker: str, start: str | None = None, end: str | None = None, autodate: bool = True) -> None:
+def plot_composite(ticker: str, 
+                   start: str | None = None, 
+                   end: str | None = None, 
+                   autodate: bool = True) -> None:
     """
     ticker: str
     start/end: str
@@ -55,7 +63,9 @@ def plot_composite(ticker: str, start: str | None = None, end: str | None = None
     # Essentially make each row correspond to a date, and 1st col is open, 2nd is close
     opclo  = np.stack([data['open'], data['close']]).T
 
-    ax = setup_plot_elements(data['date'], f'Daily price range and open/close prices against time for: {ticker}', autodate=autodate)
+    ax = setup_plot_elements(data['date'], 
+                             f'Daily price range and open/close prices against time for: {ticker}', 
+                             autodate=autodate)
 
     ax.fill_between(data['date'], data['high'], data['low'], alpha=0.5, linewidth=0)
 
@@ -84,7 +94,9 @@ def plot_single(ticker: str,
     cols = ('date', col)
     data = get_plot_data(ticker, cols=cols, start=start, end=end, autodate=autodate)
 
-    ax = setup_plot_elements(data['date'], f'Daily closing price for: {ticker}', autodate=autodate)
+    ax = setup_plot_elements(data['date'], 
+                             f'Daily closing price for: {ticker}', 
+                             autodate=autodate)
 
     ax.plot(data['date'], data[col], label=[col])
     ax.legend()
@@ -185,7 +197,8 @@ def setup_plot_elements(dates: np.array,
         fig.autofmt_xdate(rotation=45, ha='right')
     else:
         ##### Manual tick location setting #####
-        # treat dates as int index positions -> dates won't be spaced properly as non-trading days are missing
+        # treat dates as int index positions -> 
+        # dates won't be spaced properly as non-trading days are missing
         ax.set_xlim(0, len(dates) - 1)          
         # ax.set_xlim(dates[0], dates[-1]) # This is for treating dates like dates, prereq of dates in datetime dtype
         # Manual calc (round to int)
@@ -195,7 +208,8 @@ def setup_plot_elements(dates: np.array,
         # x_idx2 = np.array(np.linspace(0, len(dates)-1, 21, dtype=int))
 
         ax.set_xticks(xidx, dates[xidx], rotation=45, ha='right')
-        # Next row is for treating dates like dates, it will having the right date spacing (date spaced incl. non-trading days)
+        # Next row is for treating dates like dates, it will having the right date spacing 
+        # (date spaced inclusive of non-trading days)
         # But the tickers won't be spaced properly -> cause int spacing ignores non-trading days
         # ax.set_xticks(dates[xidx], pd.Series(dates[xidx]).dt.strftime('%Y-%m-%d'), rotation=45, ha='right')
 
