@@ -5,6 +5,7 @@ import matplotlib.dates as mdates
 # from collections.abc import Iterator
 
 from data import pull_ticker_data
+from analysis import process_ticker_data
 
 # Global data definition
 bins = 21 # Number of x-axis ticks to display for charts
@@ -13,7 +14,7 @@ def main() -> None:
     plot_day_range('VT', start='2025-01-01')
     plot_composite('VT', start='2025-01-01')
     plot_single('VT', 'close', start='2025-01-01')
-    plot_single('VT', 'open', start='2025-01-01')
+    plot_single('VT', 'open', start='2025-01-01', autodate=False)
     plt.show() # plt.show() only outside to ensure all plots can show together
 
 
@@ -31,7 +32,7 @@ def plot_day_range(ticker: str,
 
     # Obtain historical data used in plotting
     cols = ('date', 'high', 'low')
-    data = get_plot_data(ticker, cols, start=start, end=end, autodate=autodate)
+    data = process_ticker_data(ticker, cols, start=start, end=end, autodate=autodate)
 
     ax = setup_plot_elements(data['date'], 
                              f'Daily price range against time for: {ticker}', 
@@ -56,7 +57,7 @@ def plot_composite(ticker: str,
     """
 
     cols = ('date', 'high', 'low', 'open', 'close')
-    data = get_plot_data(ticker, cols, start=start, end=end, autodate=autodate)
+    data = process_ticker_data(ticker, cols, start=start, end=end, autodate=autodate)
 
     # Combine open and close data into 1 2-dim array
     # transpose to make it Nx2 array where N is num of dates
@@ -92,7 +93,7 @@ def plot_single(ticker: str,
         Whether we use matplotlib default date locator
     """
     cols = ('date', col)
-    data = get_plot_data(ticker, cols=cols, start=start, end=end, autodate=autodate)
+    data = process_ticker_data(ticker, cols=cols, start=start, end=end, autodate=autodate)
 
     ax = setup_plot_elements(data['date'], 
                              f'Daily closing price for: {ticker}', 
@@ -101,38 +102,8 @@ def plot_single(ticker: str,
     ax.plot(data['date'], data[col], label=[col])
     ax.legend()
 
-def get_plot_data(ticker: str, 
-                  cols: tuple[str], 
-                  start: str | None = None, 
-                  end: str | None = None,
-                  autodate: bool = True) -> dict[str, np.ndarray]:
-    """
-    Pull the required plot data & process it into a dict of Numpy Arrays for each column
 
-    ticker: str     
-        Ticker which data is to be pulled
-    cols: tuple     
-        tuple of column names of which data is to be pulled
-    start/end: str
-        dates in ISO 8601 (YYYY-MM-DD) format to pull data from [start, end). Default to earliest/latest
-    """
-    raw_data = pull_ticker_data(ticker, ', '.join(cols), start=start, end=end)
-    if not raw_data:
-        print(f'No data fetched for ticket {ticker}')
-        return
-    # zip(*raw_data) converts list of tuples (of rows) into list of tuples (of columns)
-    raw_data = zip(*raw_data)         # Convert row data to col data
-    packed_data = zip(cols, raw_data) # Attach col name to each col data
-
-    packed_data = {col_name: np.array(col_data) for col_name, col_data in packed_data}
-    if autodate:
-        # specify Numpy datetime64 dtype, with millisecond precision [ms] rather than day [D]
-        # Reason being we need ms precision for the datetime64 object to be successfully converted
-        # to standard python datetime object later in setup_plot_elements section with .item() method 
-        packed_data['date'] = np.array(packed_data['date'], dtype='datetime64[ms]')
-    return packed_data
-
-##### No longer required after re-factoring all data processing to dedicated get_plot_data func #####
+##### No longer required after re-factoring all data processing to dedicated process_ticker_data func #####
 # def numpyfy_data(col_datas: Iterator[tuple[str, tuple]]) -> dict[str, np.ndarray]:
 #     """
 #     col_datas: zip object
