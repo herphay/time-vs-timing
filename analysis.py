@@ -2,12 +2,20 @@ import numpy as np
 import pandas as pd
 from collections.abc import Iterable
 
-from data import pull_ticker_data
+from data import pull_ticker_data, get_all_tickers
 
 def main() -> None:
     ...
     # normalize_multi_data(['VT', '^GSPC'], 'adj_close', '1927-12-30')
 
+
+def calc_multi_returns(ticker: Iterable[str] | str,
+                       col: str = 'adj_close',
+                       start: str | None = None,
+                       end: str | None = None,
+                       out_type: str = '') -> dict[str, dict[str, np.ndarray]] | \
+                                              pd.DataFrame:
+    ...
 
 def normalize_multi_data(ticker: Iterable[str] | str,
                          data_col: str,
@@ -21,6 +29,7 @@ def normalize_multi_data(ticker: Iterable[str] | str,
 
     ticker: Iterable | str
         Pass 1 or more ticker whose data is to be normalized
+        If 'all' is passed, will process data for all available tickers
     data_col: str
         Column name whose data is to be normalized. E.g. close
     ref_date: str
@@ -113,6 +122,7 @@ def data_df_constructor(ticker: Iterable[str] | str,
     """
     ticker: Iterable | str
         Pass 1 or more ticker whose data is to be normalized
+        If 'all' is passed, will process data for all available tickers
     data_col: str
         Column name whose data is to be normalized. E.g. close
     truncate: bool
@@ -121,14 +131,7 @@ def data_df_constructor(ticker: Iterable[str] | str,
     start/end: str
         ISO 8601 (YYYY-MM-DD) dates to pull data from [start, end). Default to earliest/latest
     """
-    # Minimum data required is date + the associated data_col series
-    cols = ('date', data_col)
-
-    # Get the data into {ticker: data_dict} format
-    if isinstance(ticker, str):
-        data = {ticker: process_ticker_data(ticker, cols, start=start, end=end)}
-    else:
-        data = {tick: process_ticker_data(tick, cols, start=start, end=end) for tick in ticker}
+    data = data_dict_constructor(ticker, data_col, start, end)
     
     # Update data to a pd.DataFrame rather than a dict & rename them appropriately
     data = {ticker: pd.DataFrame(data_dict).set_index('date') for ticker, data_dict in data.items()}
@@ -143,6 +146,33 @@ def data_df_constructor(ticker: Iterable[str] | str,
     merged_df.columns = merged_df.columns.map(' '.join)
 
     return merged_df
+
+
+def data_dict_constructor(ticker: Iterable[str] | str,
+                          data_col: str,
+                          start: str | None = None,
+                          end: str | None = None) -> dict[str, np.ndarray]:
+    """
+    ticker: Iterable | str
+        Pass 1 or more ticker whose data is to be normalized
+        If 'all' is passed, will process data for all available tickers
+    data_col: str
+        Column name whose data is to be normalized. E.g. close
+    start/end: str
+        ISO 8601 (YYYY-MM-DD) dates to pull data from [start, end). Default to earliest/latest
+    """
+    # Minimum data required is date + the associated data_col series
+    cols = ('date', data_col)
+
+    # Get all available tickers from db if 'all' is passed, else ensure single ticker is iterable
+    if isinstance(ticker, str):
+        if ticker == 'all':
+            ticker = get_all_tickers()
+        else:
+            ticker = (ticker)
+
+    # Get the data into {ticker: data_dict} format
+    return {tick: process_ticker_data(tick, cols, start=start, end=end) for tick in ticker}
 
 
 def process_ticker_data(ticker: str, 

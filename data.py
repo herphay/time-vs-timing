@@ -28,7 +28,8 @@ def daily_scrapper() -> None:
     for ticker in benchmark_tickers:
         if ticker_scrapper(ticker):
             time.sleep(2.5)
-    print(f'\n########## Database updated for all {len(benchmark_tickers)} indices ##########')
+    print(f'\n########## Database updated for all {len(benchmark_tickers)} ' +
+           'benchmark indices ##########')
 
 
 def ticker_scrapper(ticker: str) -> bool:
@@ -203,6 +204,12 @@ def update_db_tickers(tickers: list[TickerInfo]) -> None:
                         VALUES (?, ?, ?, ?, ?)
         """, ticker_details)
 
+
+def get_all_tickers() -> list[str]:
+    """Return list of all tickers currently available in the local database"""
+    with sqlite3.connect('historical_data.db') as con:
+        results = con.execute('SELECT ticker FROM tickers').fetchall()
+        return [tup[0] for tup in results]
 
 def get_index_list() -> list[TickerInfo]:
     return [
