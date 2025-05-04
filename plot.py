@@ -18,6 +18,11 @@ def main() -> None:
     plt.show() # plt.show() only outside to ensure all plots can show together
 
 
+def plot_df(df: pd.DataFrame) -> None:
+    ax = setup_plot_elements('Normalize')
+    df.plot(ax=ax)
+    plt.show()
+
 def plot_day_range(ticker: str, 
                    start: str | None = None, 
                    end: str | None = None, 
@@ -34,8 +39,8 @@ def plot_day_range(ticker: str,
     cols = ('date', 'high', 'low')
     data = process_ticker_data(ticker, cols, start=start, end=end, autodate=autodate)
 
-    ax = setup_plot_elements(data['date'], 
-                             f'Daily price range against time for: {ticker}', 
+    ax = setup_plot_elements(f'Daily price range against time for: {ticker}', 
+                             dates=data['date'],
                              autodate=autodate)
     
     ax.fill_between(data['date'], data['high'], data['low'], alpha=.5, linewidth=0)
@@ -64,8 +69,8 @@ def plot_composite(ticker: str,
     # Essentially make each row correspond to a date, and 1st col is open, 2nd is close
     opclo  = np.stack([data['open'], data['close']]).T
 
-    ax = setup_plot_elements(data['date'], 
-                             f'Daily price range and open/close prices against time for: {ticker}', 
+    ax = setup_plot_elements(f'Daily price range and open/close prices against time for: {ticker}', 
+                             dates=data['date'],
                              autodate=autodate)
 
     ax.fill_between(data['date'], data['high'], data['low'], alpha=0.5, linewidth=0)
@@ -95,8 +100,8 @@ def plot_single(ticker: str,
     cols = ('date', col)
     data = process_ticker_data(ticker, cols=cols, start=start, end=end, autodate=autodate)
 
-    ax = setup_plot_elements(data['date'], 
-                             f'Daily closing price for: {ticker}', 
+    ax = setup_plot_elements(f'Daily closing price for: {ticker}', 
+                             dates=data['date'], 
                              autodate=autodate)
 
     ax.plot(data['date'], data[col], label=[col])
@@ -121,15 +126,16 @@ def get_date_idx(length: int, bins: int) -> list[int]:
     return [round(pos * (length - 1) / (bins - 1)) for pos in range(bins - 1)] + [length - 1]
 
 
-def setup_plot_elements(dates: np.array,
-                        title: str,
+def setup_plot_elements(title: str,
                         xlabel: str = 'Dates', 
                         ylabel: str = 'Price',
+                        dates: np.ndarray | None = None,
+                        manual_fmt: bool = True,
                         autodate: bool = True) -> plt.Axes:
     """
     Set up a plot and all basic elements including tick locations
 
-    dates: np.array    
+    dates: np.ndarray    
         Numpy array of dates used in the plot   
     title: str    
         Title of the chart  
@@ -143,7 +149,22 @@ def setup_plot_elements(dates: np.array,
     ax.set_title(title)
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
+    
+    manual_fmt = False if dates is None else manual_fmt
+    if manual_fmt:
+        manual_set_xaxis(ax, fig, dates, autodate)
+    
+    fig.tight_layout() # To make plots fit nicely in plotted area, need to call fig by fig, not all at once at plt
+    return ax
 
+
+def manual_set_xaxis(ax: plt.Axes,
+                     fig: plt.Figure,
+                     dates: np.array,
+                     autodate: bool) -> None:
+    """
+    For manual plotting of x-axis where we want a specific manual formatting method
+    """
     if autodate and len(dates) > 1:
         # modify start/end date to matplotlib specific dates numbers
         start_date_num = mdates.date2num(dates[0])
@@ -186,9 +207,6 @@ def setup_plot_elements(dates: np.array,
 
         # ax.tick_params('x', rotation=90)   # redundant, another way to set rotation
         # fig.autofmt_xdate()                # Auto rotate dates but does not properly increase tick gap
-    
-    fig.tight_layout() # To make plots fit nicely in plotted area, need to call fig by fig, not all at once at plt
-    return ax
 
 
 if __name__ == '__main__':
