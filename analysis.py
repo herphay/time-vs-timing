@@ -5,13 +5,14 @@ from collections.abc import Iterable
 from data import pull_ticker_data
 
 def main() -> None:
-    ...
+    normalize_multi_data(['VT', '^GSPC'], 'adj_close', '1927-12-30')
 
 
 def normalize_multi_data(ticker: Iterable[str] | str,
                          data_col: str,
                          ref_date: str,
                          truncate: bool = False,
+                         same_ref: bool = True,
                          start: str | None = None,
                          end: str | None = None) -> pd.DataFrame:
     """
@@ -26,6 +27,11 @@ def normalize_multi_data(ticker: Iterable[str] | str,
     truncate: bool
         True:  Only keep dates where all tickers' have data
         False: All tickers' full data will be kept
+    same_ref: bool
+        True:  All tickers must have the same reference -> from the ref_date, find the earliest
+               ref_date that allows all tickers to have the same ref without error (notna, not 0)
+        False: Not all tickers must have the same reference -> Each ticker to find the earliest
+               ref_date that will give that ticker a ref without error (notna, not 0)
     start/end: str
         ISO 8601 (YYYY-MM-DD) dates to pull data from [start, end). Default to earliest/latest
     """
@@ -38,8 +44,82 @@ def normalize_multi_data(ticker: Iterable[str] | str,
     else:
         data = {tick: process_ticker_data(tick, cols, start=start, end=end) for tick in ticker}
     
-    # Update data to a pd.DataFrame rather than a dict
+    # Update data to a pd.DataFrame rather than a dict & rename them appropriately
     data = {ticker: pd.DataFrame(data_dict).set_index('date') for ticker, data_dict in data.items()}
+    # for ticker, df in data.items():
+    #     df.columns = ticker + '_' + df.columns
+
+    method = 'inner' if truncate else 'outer'
+
+    # When passing dict[str: df] to pd.concat(), keys will auto set to the dict keys str
+    merged_df = pd.concat(data, axis=1, join=method, sort=True)
+    # map will map the enclosed function to each of the output, in this case tuple of multiIndex col names
+    merged_df.columns = merged_df.columns.map(' '.join)
+
+    # Now to rebase the time series
+    # ref_date = pd.to_datetime(ref_date, format='%Y-%m-%d') # Not needed, pd.loc for dtIndex work on str
+    try:
+        base_val = merged_df.loc[ref_date].copy() # As base_val might be changed later on, copy it
+        forward_df = merged_df.loc[ref_date:]
+    except KeyError:
+        # Get the next closest date to be used as the reference instead
+        new_ref = merged_df.index[merged_df.index.get_indexer(pd.to_datetime(ref_date), 
+                                                              method='bfill')]
+        new_ref = new_ref.strftime('%Y-%m-%d')[0]
+        print(f'Input reference date {ref_date} does not exist in the time series. Using ' + 
+              f'next closest date {new_ref} instead')
+        
+        base_val = merged_df.loc[new_ref].copy() # As base_val might be changed later on, copy it
+        forward_df = merged_df.loc[new_ref:]
+    
+    # If all tickers must have the same reference date
+    if same_ref:
+        # Check if user supplied reference date has any invalid data
+        col_has_error = (base_val.isna() | (base_val == 0)) # pd.Series of bool with idx of col name
+        error_cols = base_val[col_has_error].index # Get the col names where has error is true
+
+        if col_has_error.any():
+            # Check the entire future df, get the first row idx where all tickers are valid
+            # If no rows are valid, idxmax will return the original row index
+            next_valid_idx = (forward_df.notna() & (forward_df != 0)).all(axis=1).idxmax()
+
+            # If the new idx is the original idx, it must mean there are no valid future rows
+            if next_valid_idx == forward_df.index[0]:
+                    raise ValueError(f'No valid date from {next_valid_idx.strftune('%Y-%m-%d')} ' + 
+                                     'onwards where all requested tickers have valid data')
+            
+            # Otherwise there are valid rows and we update to that row's data
+            base_val = forward_df.loc[next_valid_idx].copy()
+            print(f'Original reference date {ref_date} contains invalid data for: ' + 
+                  f'{', '.join(error_cols)}. Update normalization reference to next ' + 
+                  f'valid date {next_valid_idx.strftime('%Y-%m-%d')}.')
+            
+    # Otherwise each ticker data can have separate reference dates
+    else:
+        # For each ticker data
+        for col, val in base_val.items():
+            # If the data is not errorneous, continue
+            if pd.notna(val) and val != 0:
+                continue
+
+            # Else get the next valid index
+            next_valid_idx = (forward_df[col].notna() & (forward_df[col] != 0)).idxmax(axis=0)
+
+            # If next valid index is the original index, it must be the case where there are no 
+            # valid data from the original ref date onwards, raise error
+            if next_valid_idx == forward_df.index[0]:
+                raise ValueError(f'No valid value for {col} from ' +
+                                f'{next_valid_idx.strftime('%Y-%m-%d')} onwards')
+            # Update this ticker data's reference point to the next valid date
+            base_val[col] = forward_df.loc[next_valid_idx, col]
+            print(f'Original reference date {ref_date} contains invalid data for: ' +
+                  f'{col}. Updating the reference data for it to new reference date ' +
+                  f'{next_valid_idx.strftime('%Y-%m-%d')}')
+
+    # Once all reference values are updated properly, normalize the data
+    merged_df = merged_df / base_val * 100
+
+    return merged_df
 
 
 def process_ticker_data(ticker: str, 
