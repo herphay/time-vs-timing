@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 # from collections.abc import Iterator
 
-from data import pull_ticker_data
+from analysis import normalize_multi_data
 from analysis import process_ticker_data
 
 # Global data definition
@@ -21,7 +21,6 @@ def main() -> None:
 def plot_df(df: pd.DataFrame) -> None:
     ax = setup_plot_elements('Normalize')
     df.plot(ax=ax)
-    plt.show()
 
 def plot_day_range(ticker: str, 
                    start: str | None = None, 

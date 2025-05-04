@@ -5,7 +5,8 @@ from collections.abc import Iterable
 from data import pull_ticker_data
 
 def main() -> None:
-    normalize_multi_data(['VT', '^GSPC'], 'adj_close', '1927-12-30')
+    ...
+    # normalize_multi_data(['VT', '^GSPC'], 'adj_close', '1927-12-30')
 
 
 def normalize_multi_data(ticker: Iterable[str] | str,
@@ -35,42 +36,24 @@ def normalize_multi_data(ticker: Iterable[str] | str,
     start/end: str
         ISO 8601 (YYYY-MM-DD) dates to pull data from [start, end). Default to earliest/latest
     """
-    # Minimum data required is date + the associated data_col series
-    cols = ('date', data_col)
-
-    # Get the data into {ticker: data_dict} format
-    if isinstance(ticker, str):
-        data = {ticker: process_ticker_data(ticker, cols, start=start, end=end)}
-    else:
-        data = {tick: process_ticker_data(tick, cols, start=start, end=end) for tick in ticker}
-    
-    # Update data to a pd.DataFrame rather than a dict & rename them appropriately
-    data = {ticker: pd.DataFrame(data_dict).set_index('date') for ticker, data_dict in data.items()}
-    # for ticker, df in data.items():
-    #     df.columns = ticker + '_' + df.columns
-
-    method = 'inner' if truncate else 'outer'
-
-    # When passing dict[str: df] to pd.concat(), keys will auto set to the dict keys str
-    merged_df = pd.concat(data, axis=1, join=method, sort=True)
-    # map will map the enclosed function to each of the output, in this case tuple of multiIndex col names
-    merged_df.columns = merged_df.columns.map(' '.join)
+    # Get the data processed into the form of a pd.DataFrame
+    data_df = data_df_constructor(ticker, data_col, truncate, start, end)
 
     # Now to rebase the time series
     # ref_date = pd.to_datetime(ref_date, format='%Y-%m-%d') # Not needed, pd.loc for dtIndex work on str
     try:
-        base_val = merged_df.loc[ref_date].copy() # As base_val might be changed later on, copy it
-        forward_df = merged_df.loc[ref_date:]
+        base_val = data_df.loc[ref_date].copy() # As base_val might be changed later on, copy it
+        forward_df = data_df.loc[ref_date:]
     except KeyError:
         # Get the next closest date to be used as the reference instead
-        new_ref = merged_df.index[merged_df.index.get_indexer(pd.to_datetime(ref_date), 
+        new_ref = data_df.index[data_df.index.get_indexer(pd.to_datetime(ref_date), 
                                                               method='bfill')]
         new_ref = new_ref.strftime('%Y-%m-%d')[0]
         print(f'Input reference date {ref_date} does not exist in the time series. Using ' + 
               f'next closest date {new_ref} instead')
         
-        base_val = merged_df.loc[new_ref].copy() # As base_val might be changed later on, copy it
-        forward_df = merged_df.loc[new_ref:]
+        base_val = data_df.loc[new_ref].copy() # As base_val might be changed later on, copy it
+        forward_df = data_df.loc[new_ref:]
     
     # If all tickers must have the same reference date
     if same_ref:
@@ -117,7 +100,47 @@ def normalize_multi_data(ticker: Iterable[str] | str,
                   f'{next_valid_idx.strftime('%Y-%m-%d')}')
 
     # Once all reference values are updated properly, normalize the data
-    merged_df = merged_df / base_val * 100
+    data_df = data_df / base_val * 100
+
+    return data_df
+
+
+def data_df_constructor(ticker: Iterable[str] | str,
+                        data_col: str,
+                        truncate: bool = False,
+                        start: str | None = None,
+                        end: str | None = None) -> pd.DataFrame:
+    """
+    ticker: Iterable | str
+        Pass 1 or more ticker whose data is to be normalized
+    data_col: str
+        Column name whose data is to be normalized. E.g. close
+    truncate: bool
+        True:  Only keep dates where all tickers' have data
+        False: All tickers' full data will be kept
+    start/end: str
+        ISO 8601 (YYYY-MM-DD) dates to pull data from [start, end). Default to earliest/latest
+    """
+    # Minimum data required is date + the associated data_col series
+    cols = ('date', data_col)
+
+    # Get the data into {ticker: data_dict} format
+    if isinstance(ticker, str):
+        data = {ticker: process_ticker_data(ticker, cols, start=start, end=end)}
+    else:
+        data = {tick: process_ticker_data(tick, cols, start=start, end=end) for tick in ticker}
+    
+    # Update data to a pd.DataFrame rather than a dict & rename them appropriately
+    data = {ticker: pd.DataFrame(data_dict).set_index('date') for ticker, data_dict in data.items()}
+    # for ticker, df in data.items():
+    #     df.columns = ticker + '_' + df.columns
+
+    method = 'inner' if truncate else 'outer'
+
+    # When passing dict[str: df] to pd.concat(), keys will auto set to the dict keys str
+    merged_df = pd.concat(data, axis=1, join=method, sort=True)
+    # map will map the enclosed function to each of the output, in this case tuple of multiIndex col names
+    merged_df.columns = merged_df.columns.map(' '.join)
 
     return merged_df
 
