@@ -9,6 +9,71 @@ def main() -> None:
     # normalize_multi_data(['VT', '^GSPC'], 'adj_close', '1927-12-30')
 
 
+def missed_n_days(tickers: Iterable[str] | str,
+                  n_scens: Iterable[tuple[int, int]] | tuple[int, int] = ((10, 0),),
+                  initial_inv: float = 10000,
+                  price_type: str = 'adj_close',
+                  start: str | None = None,
+                  end: str | None = None,
+                  show_n: bool = False,
+                  show_results: bool = True) -> pd.DataFrame:
+    """
+    Calculate the returns if some number of the best/worst days are missed during a period.
+
+    tickers: Iterable | str
+        tickers of which returns are to be considered
+    n_scens: Iterable | tuple
+        tuple of ints where 
+            1st int is the best n days to remove 
+            2nd int is worst n days
+        All provided tuples will be evaluated
+    """
+    # Make returns into absolute multiplier
+    returns_df = calc_multi_returns(tickers, price_type, start, end) + 1
+    returns_df: pd.DataFrame
+    returns_df.columns = [col.split(' ')[0] + ' Final Value' for col in returns_df.columns]
+    original_returns = returns_df.prod() * initial_inv
+    compare_df = pd.DataFrame({'Original Returns': original_returns}).T
+
+    if not isinstance(n_scens[0], tuple):
+        n_scens = (n_scens,)
+    
+    # For each scenario, calc the returns and append it to compare_df
+    for scen in n_scens:
+        # For each ticker, make their best/worst return = 1 to negate their effect
+        best_n = scen[0]
+        worst_n = scen[1]
+
+        modifiers = {}
+        print('\n', '@' * 80, '\n', '@' * 80, '\n', sep='')
+        for col in returns_df.columns:
+            best = returns_df.loc[returns_df.nlargest(best_n, col).index, col]
+            worst = returns_df.loc[returns_df.nsmallest(worst_n, col).index, col]
+            best_total = best.prod()
+            worst_total = worst.prod()
+            
+            if show_n:
+                print(f'Missing the best {best_n} & worst {worst_n} days for {col}')
+                print('#' * 80, '\n')
+                print(f'The best {best_n} daily returns are: ' +
+                      f'{' | '.join((((best - 1) * 100).round(1).astype(str) + '%').tolist())}')
+                print(f'Cumulatively this is {round((best_total - 1) * 100, 1)}%\n')
+                print(f'The worst {worst_n} daily returns are: ' +
+                      f'{' | '.join((((worst - 1) * 100).round(1).astype(str) + '%').tolist())}')
+                print(f'Cumulatively this is {round((worst_total - 1) * 100, 1)}%\n')
+            
+            modifiers[col] = original_returns.loc[col] / best_total / worst_total
+        
+        compare_df.loc[f'Missed {best_n}B, {worst_n}W'] = modifiers
+    
+    print('\n', '@' * 80, '\n', '@' * 80, '\n'*2, sep='')
+
+    if show_results:
+        print(compare_df.round(2))
+    
+    return compare_df
+
+
 def calc_multi_returns(tickers: Iterable[str] | str,
                        price_type: str = 'adj_close',
                        start: str | None = None,
