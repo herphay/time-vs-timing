@@ -210,6 +210,24 @@ def get_all_tickers() -> list[str]:
     with sqlite3.connect('historical_data.db') as con:
         results = con.execute('SELECT ticker FROM tickers').fetchall()
         return [tup[0] for tup in results]
+    
+
+def get_all_start_dates(to_print: bool) -> list[tuple[str, str]]:
+    """Return a list of tuples with (ticker, earliest data available date)"""
+    with sqlite3.connect('historical_data.db') as con:
+        results =  con.execute("""SELECT ticker, MIN(date) FROM 
+                                  tickers t JOIN
+                                  historical_data h
+                                  ON t.ticker_id = h.ticker_id
+                                  GROUP BY ticker
+                                  ORDER BY MIN(date)
+                               """).fetchall()
+        if to_print:
+            print('Ticker: Earliest data')
+            for tup in results:
+                print(f'{tup[0]}: {tup[1]}')
+        
+        return results
 
 def get_index_list() -> list[TickerInfo]:
     return [
