@@ -21,6 +21,7 @@ def main() -> None:
 def plot_df(df: pd.DataFrame) -> None:
     ax = setup_plot_elements('Normalize')
     df.plot(ax=ax)
+    plt.show()
 
 def plot_day_range(ticker: str, 
                    start: str | None = None, 
@@ -35,8 +36,8 @@ def plot_day_range(ticker: str,
     """
 
     # Obtain historical data used in plotting
-    cols = ('date', 'high', 'low')
-    data = process_ticker_data(ticker, cols, start=start, end=end, autodate=autodate)
+    cols = ('high', 'low')
+    data = process_ticker_data(ticker, cols, start=start, end=end, autodate=autodate)[ticker]
 
     ax = setup_plot_elements(f'Daily price range against time for: {ticker}', 
                              dates=data['date'],
@@ -60,8 +61,8 @@ def plot_composite(ticker: str,
         Whether we use matplotlib default date locator
     """
 
-    cols = ('date', 'high', 'low', 'open', 'close')
-    data = process_ticker_data(ticker, cols, start=start, end=end, autodate=autodate)
+    cols = ('high', 'low', 'open', 'close')
+    data = process_ticker_data(ticker, cols, start=start, end=end, autodate=autodate)[ticker]
 
     # Combine open and close data into 1 2-dim array
     # transpose to make it Nx2 array where N is num of dates
@@ -96,8 +97,7 @@ def plot_single(ticker: str,
     autodate: bool
         Whether we use matplotlib default date locator
     """
-    cols = ('date', col)
-    data = process_ticker_data(ticker, cols=cols, start=start, end=end, autodate=autodate)
+    data = process_ticker_data(ticker, col, start=start, end=end, autodate=autodate)[ticker]
 
     ax = setup_plot_elements(f'Daily closing price for: {ticker}', 
                              dates=data['date'], 

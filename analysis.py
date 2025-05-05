@@ -17,7 +17,7 @@ def calc_multi_returns(ticker: Iterable[str] | str,
                                               pd.DataFrame:
     ...
 
-def normalize_multi_data(ticker: Iterable[str] | str,
+def normalize_multi_data(tickers: Iterable[str] | str,
                          data_col: str,
                          ref_date: str,
                          truncate: bool = False,
@@ -25,10 +25,10 @@ def normalize_multi_data(ticker: Iterable[str] | str,
                          start: str | None = None,
                          end: str | None = None) -> pd.DataFrame:
     """
-    Normalize multiple ticker's selected data where a specific date = 100%
+    Normalize multiple tickers' selected data where a specific date = 100%
 
-    ticker: Iterable | str
-        Pass 1 or more ticker whose data is to be normalized
+    tickers: Iterable | str
+        Pass 1 or more tickers whose data is to be normalized
         If 'all' is passed, will process data for all available tickers
     data_col: str
         Column name whose data is to be normalized. E.g. close
@@ -46,7 +46,7 @@ def normalize_multi_data(ticker: Iterable[str] | str,
         ISO 8601 (YYYY-MM-DD) dates to pull data from [start, end). Default to earliest/latest
     """
     # Get the data processed into the form of a pd.DataFrame
-    data_df = data_df_constructor(ticker, data_col, truncate, start, end)
+    data_df = data_df_constructor(process_ticker_data(tickers, data_col, start, end), truncate)
 
     # Now to rebase the time series
     # ref_date = pd.to_datetime(ref_date, format='%Y-%m-%d') # Not needed, pd.loc for dtIndex work on str
@@ -55,8 +55,8 @@ def normalize_multi_data(ticker: Iterable[str] | str,
         forward_df = data_df.loc[ref_date:]
     except KeyError:
         # Get the next closest date to be used as the reference instead
-        new_ref = data_df.index[data_df.index.get_indexer(pd.to_datetime(ref_date), 
-                                                              method='bfill')]
+        new_ref = data_df.index[data_df.index.get_indexer([pd.to_datetime(ref_date)], 
+                                                          method='bfill')]
         new_ref = new_ref.strftime('%Y-%m-%d')[0]
         print(f'Input reference date {ref_date} does not exist in the time series. Using ' + 
               f'next closest date {new_ref} instead')
@@ -114,27 +114,19 @@ def normalize_multi_data(ticker: Iterable[str] | str,
     return data_df
 
 
-def data_df_constructor(ticker: Iterable[str] | str,
-                        data_col: str,
-                        truncate: bool = False,
-                        start: str | None = None,
-                        end: str | None = None) -> pd.DataFrame:
+def data_df_constructor(ticker_dict: dict[str, dict[str, np.ndarray]],
+                        truncate: bool = False) -> pd.DataFrame:
     """
-    ticker: Iterable | str
-        Pass 1 or more ticker whose data is to be normalized
-        If 'all' is passed, will process data for all available tickers
-    data_col: str
-        Column name whose data is to be normalized. E.g. close
+    Takes in a ticker data dict in the specified form and transform it into a DataFrame
+
+    ticker_dict: dict[str, dict[str, np.ndarray]]
+        Dict of dicts, 1st level associate tickers to it's data, 2nd level associate col_name to data
     truncate: bool
         True:  Only keep dates where all tickers' have data
         False: All tickers' full data will be kept
-    start/end: str
-        ISO 8601 (YYYY-MM-DD) dates to pull data from [start, end). Default to earliest/latest
     """
-    data = data_dict_constructor(ticker, data_col, start, end)
-    
     # Update data to a pd.DataFrame rather than a dict & rename them appropriately
-    data = {ticker: pd.DataFrame(data_dict).set_index('date') for ticker, data_dict in data.items()}
+    data = {ticker: pd.DataFrame(data_dict).set_index('date') for ticker, data_dict in ticker_dict.items()}
     # for ticker, df in data.items():
     #     df.columns = ticker + '_' + df.columns
 
@@ -148,65 +140,61 @@ def data_df_constructor(ticker: Iterable[str] | str,
     return merged_df
 
 
-def data_dict_constructor(ticker: Iterable[str] | str,
-                          data_col: str,
-                          start: str | None = None,
-                          end: str | None = None) -> dict[str, np.ndarray]:
-    """
-    ticker: Iterable | str
-        Pass 1 or more ticker whose data is to be normalized
-        If 'all' is passed, will process data for all available tickers
-    data_col: str
-        Column name whose data is to be normalized. E.g. close
-    start/end: str
-        ISO 8601 (YYYY-MM-DD) dates to pull data from [start, end). Default to earliest/latest
-    """
-    # Minimum data required is date + the associated data_col series
-    cols = ('date', data_col)
-
-    # Get all available tickers from db if 'all' is passed, else ensure single ticker is iterable
-    if isinstance(ticker, str):
-        if ticker == 'all':
-            ticker = get_all_tickers()
-        else:
-            ticker = (ticker)
-
-    # Get the data into {ticker: data_dict} format
-    return {tick: process_ticker_data(tick, cols, start=start, end=end) for tick in ticker}
-
-
-def process_ticker_data(ticker: str, 
-                        cols: Iterable[str], 
+def process_ticker_data(tickers: Iterable[str] | str, 
+                        cols: Iterable[str] | str, 
                         start: str | None = None, 
                         end: str | None = None,
-                        autodate: bool = True) -> dict[str, np.ndarray]:
+                        autodate: bool = True) -> dict[str, dict[str, np.ndarray]]:
     """
     Pull the required ticker data & process it into a dict of Numpy Arrays for each column
+    which is then stored in a dict of tickers
 
-    ticker: str     
-        Ticker which data is to be pulled
-    cols: Iterable     
-        Iterable of column names of which data is to be pulled
+    tickers: Iterable[str] | str    
+        Ticker(s) which data is to be pulled
+    cols: Iterable[str] | str
+        Column name(s) of which data is to be pulled. Date + 1 additional col is necessarily pulled.
     start/end: str
         dates in ISO 8601 (YYYY-MM-DD) format to pull data from [start, end). Default to earliest/latest
     autodate: bool
         convert datetime to numpy datetime64[ms] for matplotlib auto plot setting
     """
-    raw_data = pull_ticker_data(ticker, ', '.join(cols), start=start, end=end)
-    if not raw_data:
-        print(f'No data fetched for ticket {ticker}')
-        return
-    # zip(*raw_data) converts list of tuples (of rows) into list of tuples (of columns)
-    raw_data = zip(*raw_data)         # Convert row data to col data
-    packed_data = zip(cols, raw_data) # Attach col name to each col data
+    # Get all available tickers from db if 'all' is passed, else ensure single ticker is iterable
+    if isinstance(tickers, str):
+        if tickers == 'all':
+            tickers = get_all_tickers()
+        else:
+            tickers = (tickers,)
+    # make cols iterable if only a string is passed
+    if isinstance(cols, str):
+        cols = (cols,)
+    
+    # Ensure that date is within the data pulled and not duplicated
+    cols = ['date'] + [col for col in cols if col != 'date']
 
-    packed_data = {col_name: np.array(col_data) for col_name, col_data in packed_data}
-    if autodate:
-        # specify Numpy datetime64 dtype, with millisecond precision [ms] rather than day [D]
-        # Reason being we need ms precision for the datetime64 object to be successfully converted
-        # to standard python datetime object later in setup_plot_elements section with .item() method 
-        packed_data['date'] = np.array(packed_data['date'], dtype='datetime64[ms]')
-    return packed_data
+    if len(cols) == 1:
+        raise ValueError("Can't pull only date data for a ticker, you must specify 1 more column")
+
+    tickers_data = {}
+    for ticker in tickers:
+        raw_data = pull_ticker_data(ticker, ', '.join(cols), start=start, end=end)
+        if not raw_data:
+            print(f'No data fetched for ticket {ticker}')
+            return
+        # zip(*raw_data) converts list of tuples (of rows) into list of tuples (of columns)
+        raw_data = zip(*raw_data)         # Convert row data to col data
+        packed_data = zip(cols, raw_data) # Attach col name to each col data
+
+        packed_data = {col_name: np.array(col_data) for col_name, col_data in packed_data}
+        if autodate:
+            # specify Numpy datetime64 dtype, with millisecond precision [ms] rather than day [D]
+            # Reason being we need ms precision for the datetime64 object to be successfully converted
+            # to standard python datetime object later in setup_plot_elements section with .item() method 
+            packed_data['date'] = np.array(packed_data['date'], dtype='datetime64[ms]')
+        
+        # Get the data into {ticker: data_dict} format
+        tickers_data[ticker] = packed_data
+
+    return tickers_data
 
 
 if __name__ == '__main__':
