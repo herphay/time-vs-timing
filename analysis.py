@@ -77,7 +77,7 @@ def normalize_multi_data(tickers: Iterable[str] | str,
 
             # If the new idx is the original idx, it must mean there are no valid future rows
             if next_valid_idx == forward_df.index[0]:
-                    raise ValueError(f'No valid date from {next_valid_idx.strftune('%Y-%m-%d')} ' + 
+                    raise ValueError(f'No valid date from {next_valid_idx.strftime('%Y-%m-%d')} ' + 
                                      'onwards where all requested tickers have valid data')
             
             # Otherwise there are valid rows and we update to that row's data
@@ -179,7 +179,7 @@ def process_ticker_data(tickers: Iterable[str] | str,
         raw_data = pull_ticker_data(ticker, ', '.join(cols), start=start, end=end)
         if not raw_data:
             print(f'No data fetched for ticket {ticker}')
-            return
+            continue
         # zip(*raw_data) converts list of tuples (of rows) into list of tuples (of columns)
         raw_data = zip(*raw_data)         # Convert row data to col data
         packed_data = zip(cols, raw_data) # Attach col name to each col data
