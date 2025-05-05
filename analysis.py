@@ -9,13 +9,37 @@ def main() -> None:
     # normalize_multi_data(['VT', '^GSPC'], 'adj_close', '1927-12-30')
 
 
-def calc_multi_returns(ticker: Iterable[str] | str,
-                       col: str = 'adj_close',
+def calc_multi_returns(tickers: Iterable[str] | str,
+                       price_type: str = 'adj_close',
                        start: str | None = None,
                        end: str | None = None,
-                       out_type: str = '') -> dict[str, dict[str, np.ndarray]] | \
-                                              pd.DataFrame:
-    ...
+                       output_format: str = 'df') -> pd.DataFrame | \
+                                                dict[str, dict[str, np.ndarray]]:
+    """
+    Calculate each ticker's daily returns
+
+    tickers: Iterable | str
+        Pass 1 or more tickers whose data is to be normalized
+        If 'all' is passed, will process data for all available tickers
+    price_type: str
+        Price type used calculate returns. E.g. close / adj_close
+    start/end: str
+        ISO 8601 (YYYY-MM-DD) dates to pull data from [start, end). Default to earliest/latest
+    output_format: str 
+        Use 'df' to return a DataFrame. Anything else defaults to a nested dict with np.ndarray
+    """
+    data = process_ticker_data(tickers, price_type, start, end)
+
+    if output_format == 'df':
+        data = data_df_constructor(data).pct_change()
+        data.columns = data.columns.str.replace(price_type, 'daily returns')
+        return data
+    else:
+        for ticker, pdata in data.items():
+            prices = pdata.pop(price_type)
+            pdata['daily returns'] = prices[1:] / prices[:-1] - 1
+        return data
+
 
 def normalize_multi_data(tickers: Iterable[str] | str,
                          data_col: str,
