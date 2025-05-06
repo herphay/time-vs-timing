@@ -35,18 +35,29 @@ def missed_n_days(tickers: Iterable[str] | str,
     original_returns = returns_df.prod() * initial_inv
     compare_df = pd.DataFrame({'Original Returns': original_returns}).T
 
+    ndays = (pd.to_datetime(end) - pd.to_datetime(start)).days
+    durations = {}
+    print('\n\n')
+
     if not isinstance(n_scens[0], tuple):
         n_scens = (n_scens,)
     
     # For each scenario, calc the returns and append it to compare_df
-    for scen in n_scens:
-        # For each ticker, make their best/worst return = 1 to negate their effect
-        best_n = scen[0]
-        worst_n = scen[1]
+    for col in returns_df.columns:
+        ticker = col.split(' ')[0]
+        cagr_col = ticker + ' CAGR %'
+        if (nadays := pd.isna(returns_df[col]).sum()) > 0:
+            print(f'WARNING: {ticker} has {nadays} dates where there are no returns, ' +
+                  f"it's final value & CAGR cannot be properly compared to other tickers here.")
+            col_days = ndays - nadays
 
-        modifiers = {}
+        years = 365.25 / col_days
+        durations[ticker] = (1 / years).round(1)
+
         print('\n', '@' * 80, '\n', '@' * 80, '\n', sep='')
-        for col in returns_df.columns:
+        for scen in n_scens:
+            best_n = scen[0]
+            worst_n = scen[1]
             best = returns_df.loc[returns_df.nlargest(best_n, col).index, col]
             worst = returns_df.loc[returns_df.nsmallest(worst_n, col).index, col]
             best_total = best.prod()
@@ -61,14 +72,21 @@ def missed_n_days(tickers: Iterable[str] | str,
                 print(f'The worst {worst_n} daily returns are: ' +
                       f'{' | '.join((((worst - 1) * 100).round(1).astype(str) + '%').tolist())}')
                 print(f'Cumulatively this is {round((worst_total - 1) * 100, 1)}%\n')
-            
-            modifiers[col] = original_returns.loc[col] / best_total / worst_total
+            final_val = original_returns.loc[col] / best_total / worst_total
+            compare_df.loc[f'Missed {best_n}B, {worst_n}W', col] = final_val
+            compare_df.loc[f'Missed {best_n}B, {worst_n}W', 
+                           cagr_col] = ((final_val / initial_inv) ** (years) - 1) * 100
+            # modifiers[col] = original_returns.loc[col] / best_total / worst_total
         
-        compare_df.loc[f'Missed {best_n}B, {worst_n}W'] = modifiers
+        # compare_df.loc[f'Missed {best_n}B, {worst_n}W'] = modifiers
     
     print('\n', '@' * 80, '\n', '@' * 80, '\n'*2, sep='')
 
+    # pd.concat([compare_df, ((compare_df / initial_inv) ** (365.25 / ndays))], axis=1)
+
     if show_results:
+        print('Years of data available:')
+        print(' | '.join([f'{k}: {v} years' for k, v in durations.items()]))
         print(compare_df.round(2))
     
     return compare_df
