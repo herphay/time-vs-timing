@@ -110,7 +110,7 @@ def pull_ticker_data(ticker: str,
     cols: str
         Must be in format 'col1, col2, col3'    
     start/end: str
-        ISO 8601 (YYYY-MM-DD) format. Selecting [start:end) similar to yfinance
+        ISO 8601 (YYYY-MM-DD) format. Selecting [start:end]
         Defaults to earliest/latest dates if None
     """
     if not cols: cols = '*'
@@ -124,7 +124,7 @@ def pull_ticker_data(ticker: str,
                                            FROM tickers \
                                            WHERE ticker = ?) \
                         AND date >= ? \
-                        AND date < ? \
+                        AND date <= ? \
                     ", (ticker, start, end))
         return results.fetchall()
     

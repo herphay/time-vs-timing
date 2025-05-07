@@ -30,7 +30,7 @@ def plot_day_range(ticker: str,
     """
     ticker: str
     start/end: str
-        ISO 8601 (YYYY-MM-DD)
+        ISO 8601 (YYYY-MM-DD), selecting [start:end]
     autodate: bool
         Whether we use matplotlib default date locator
     """
@@ -56,7 +56,7 @@ def plot_composite(ticker: str,
     """
     ticker: str
     start/end: str
-        ISO 8601 (YYYY-MM-DD)
+        ISO 8601 (YYYY-MM-DD), selecting [start:end]
     autodate: bool
         Whether we use matplotlib default date locator
     """
@@ -93,7 +93,7 @@ def plot_single(ticker: str,
     col: str
         The single column to plot
     start/end: str
-        ISO 8601 (YYYY-MM-DD)
+        ISO 8601 (YYYY-MM-DD), selecting [start:end]
     autodate: bool
         Whether we use matplotlib default date locator
     """

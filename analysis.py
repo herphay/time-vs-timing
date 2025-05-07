@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from datetime import datetime, timedelta
 from collections.abc import Iterable
 
 from data import pull_ticker_data, get_all_tickers
@@ -107,20 +108,30 @@ def calc_multi_returns(tickers: Iterable[str] | str,
     price_type: str
         Price type used calculate returns. E.g. close / adj_close
     start/end: str
-        ISO 8601 (YYYY-MM-DD) dates to pull data from [start, end). Default to earliest/latest
+        ISO 8601 (YYYY-MM-DD) dates to pull data from [start, end]. Default to earliest/latest
     output_format: str 
         Use 'df' to return a DataFrame. Anything else defaults to a nested dict with np.ndarray
     """
-    data = process_ticker_data(tickers, price_type, start, end)
+    # Pull data earlier than user's start date so we can calc returns for the user's start date
+    new_start = (pd.to_datetime(start, format='%Y-%m-%d') - timedelta(days=7)).strftime('%Y-%m-%d')
+    data = process_ticker_data(tickers, price_type, new_start, end)
 
     if output_format == 'df':
         data = data_df_constructor(data).pct_change()
         data.columns = data.columns.str.replace(price_type, 'daily returns')
-        return data
+        return data.loc[start:end]
     else:
-        for ticker, pdata in data.items():
+        # Get the index location where user start date would be, used for earlier dates removal
+        idx = (next(iter(data.values()))['date'] < pd.to_datetime(start)).sum()
+        for pdata in data.values():
+            # returns the data at the popped key, remove said key/val from dict
             prices = pdata.pop(price_type)
-            pdata['daily returns'] = prices[1:] / prices[:-1] - 1
+            # calculate returns for 2nd date in the time series onwards 
+            # (1st day don't have an earlier date to calc returns with)
+            # indexed to idx - 1 as our data now start from the 2nd date onwards
+            pdata['daily returns'] = (prices[1:] / prices[:-1] - 1)[idx - 1:]
+            # date series have no such truncation as the returns series, so idx stays the same
+            pdata['date'] = pdata['date'][idx:]
         return data
 
 
@@ -150,7 +161,7 @@ def normalize_multi_data(tickers: Iterable[str] | str,
         False: Not all tickers must have the same reference -> Each ticker to find the earliest
                ref_date that will give that ticker a ref without error (notna, not 0)
     start/end: str
-        ISO 8601 (YYYY-MM-DD) dates to pull data from [start, end). Default to earliest/latest
+        ISO 8601 (YYYY-MM-DD) dates to pull data from [start, end]. Default to earliest/latest
     """
     # Get the data processed into the form of a pd.DataFrame
     data_df = data_df_constructor(process_ticker_data(tickers, data_col, start, end), truncate)
@@ -261,7 +272,7 @@ def process_ticker_data(tickers: Iterable[str] | str,
     cols: Iterable[str] | str
         Column name(s) of which data is to be pulled. Date + 1 additional col is necessarily pulled.
     start/end: str
-        dates in ISO 8601 (YYYY-MM-DD) format to pull data from [start, end). Default to earliest/latest
+        dates in ISO 8601 (YYYY-MM-DD) format to pull data from [start, end]. Default to earliest/latest
     autodate: bool
         convert datetime to numpy datetime64[ms] for matplotlib auto plot setting
     """
