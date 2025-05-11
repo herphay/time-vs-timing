@@ -1,3 +1,4 @@
+#%%
 import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
@@ -8,6 +9,8 @@ from data import pull_ticker_data, get_all_tickers
 def main() -> None:
     ...
     # normalize_multi_data(['VT', '^GSPC'], 'adj_close', '1927-12-30')
+    missed_n_days(['VT', '^GSPC', '^SP500TR', 'SHY'], [(10,0), (5,5)], 
+                  start='2003-01-01', end='2022-12-31', show_n=True)
 
 
 def missed_n_days(tickers: Iterable[str] | str,
@@ -19,7 +22,7 @@ def missed_n_days(tickers: Iterable[str] | str,
                   show_n: bool = False,
                   show_results: bool = True) -> pd.DataFrame:
     """
-    Calculate the returns if some number of the best/worst days are missed during a period.
+    Calculate the final value & returns if n of the best/worst days are missed during a period.
 
     tickers: Iterable | str
         tickers of which returns are to be considered
@@ -32,7 +35,7 @@ def missed_n_days(tickers: Iterable[str] | str,
     # Make returns into absolute multiplier
     returns_df = calc_multi_returns(tickers, price_type, start, end) + 1
     returns_df: pd.DataFrame
-    returns_df.columns = [col.split(' ')[0] + ' Final Value' for col in returns_df.columns]
+    returns_df.columns = [ticker + ' Final Value' for ticker in tickers]
     original_returns = returns_df.prod() * initial_inv
     compare_df = pd.DataFrame({'Original Returns': original_returns}).T
 
@@ -50,12 +53,15 @@ def missed_n_days(tickers: Iterable[str] | str,
         if (nadays := pd.isna(returns_df[col]).sum()) > 0:
             print(f'WARNING: {ticker} has {nadays} dates where there are no returns, ' +
                   f"it's final value & CAGR cannot be properly compared to other tickers here.")
-            col_days = ndays - nadays
 
-        years = 365.25 / col_days
-        durations[ticker] = (1 / years).round(1)
+        col_days = ndays - nadays
+        inv_yrs = 365.25 / col_days
+        durations[ticker] = (1 / inv_yrs).round(1)
 
-        print('\n', '@' * 80, '\n', '@' * 80, '\n', sep='')
+        compare_df.loc['Original Returns', cagr_col] = ((compare_df.loc['Original Returns', col] / 
+                                                         initial_inv) ** inv_yrs - 1) * 100
+
+        if show_n: print('\n', '@' * 80, '\n', '@' * 80, '\n', sep='')
         for scen in n_scens:
             best_n = scen[0]
             worst_n = scen[1]
@@ -76,16 +82,19 @@ def missed_n_days(tickers: Iterable[str] | str,
             final_val = original_returns.loc[col] / best_total / worst_total
             compare_df.loc[f'Missed {best_n}B, {worst_n}W', col] = final_val
             compare_df.loc[f'Missed {best_n}B, {worst_n}W', 
-                           cagr_col] = ((final_val / initial_inv) ** (years) - 1) * 100
+                           cagr_col] = ((final_val / initial_inv) ** inv_yrs - 1) * 100
             # modifiers[col] = original_returns.loc[col] / best_total / worst_total
         
         # compare_df.loc[f'Missed {best_n}B, {worst_n}W'] = modifiers
     
-    print('\n', '@' * 80, '\n', '@' * 80, '\n'*2, sep='')
-
     # pd.concat([compare_df, ((compare_df / initial_inv) ** (365.25 / ndays))], axis=1)
 
+    # Rearrange columns
+    compare_df = compare_df[[f'{ticker} {val}' for ticker in tickers 
+                                               for val in ('Final Value', 'CAGR %')]]
+
     if show_results:
+        print('\n', '@' * 80, '\n', '@' * 80, '\n'*2, sep='')
         print('Years of data available:')
         print(' | '.join([f'{k}: {v} years' for k, v in durations.items()]))
         print(compare_df.round(2))
@@ -315,5 +324,6 @@ def process_ticker_data(tickers: Iterable[str] | str,
     return tickers_data
 
 
+#%%
 if __name__ == '__main__':
     main()
