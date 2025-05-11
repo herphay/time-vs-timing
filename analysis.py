@@ -43,7 +43,15 @@ def missed_n_days(tickers: Iterable[str] | str,
     original_returns = returns_df.prod() * initial_inv
     compare_df = pd.DataFrame({'Original Returns': original_returns}).T
 
+    # Assuming Period is valid (i.e. there is data from start to end dates) 
+    # Get period day count by assuming full period (inclu non-business days)
     ndays = (pd.to_datetime(end) - pd.to_datetime(start)).days
+    # If day count pulled deviates more than 10 days (Typically there are only 3 days non-trading)
+    # Then update the day count to the available data period
+    if ndays > (returns_df.index[-1] - returns_df.index[0]).days + 10:
+        ndays = (returns_df.index[-1] - returns_df.index[0]).days
+        start = returns_df.index[0].strftime('%Y-%m-%d')
+
     durations = {}
     print('\n\n')
 
@@ -56,10 +64,15 @@ def missed_n_days(tickers: Iterable[str] | str,
         if (nadays := pd.isna(returns_df[col]).sum()) > 0:
             print(f'WARNING: {ticker} has {nadays} dates where there are no returns, ' +
                   f"it's final value & CAGR cannot be properly compared to other tickers here.")
-
-        col_days = ndays - nadays
+            # If there are multiple NaNs, deduct duration til the first valid data point from ndays
+            col_days = ndays - ((~pd.isna(returns_df[col])).idxmax() - pd.to_datetime(start)).days
+        else:
+            ...
+            col_days = ndays
+        # col_days = ndays - nadays
         inv_yrs = 365.25 / col_days
-        durations[ticker] = (1 / inv_yrs).round(1)
+        print(type((1 / inv_yrs)))
+        durations[ticker] = round(1 / inv_yrs, 1)
 
         compare_df.loc['Original Returns', cagr_col] = ((compare_df.loc['Original Returns', col] / 
                                                          initial_inv) ** inv_yrs - 1) * 100
