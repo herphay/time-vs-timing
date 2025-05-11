@@ -4,7 +4,8 @@ import pandas as pd
 from datetime import datetime, timedelta
 from collections.abc import Iterable
 
-from data import pull_ticker_data, get_all_tickers
+from data import pull_ticker_data
+from helpers import parse_tickers_n_cols
 
 def main() -> None:
     ...
@@ -32,9 +33,12 @@ def missed_n_days(tickers: Iterable[str] | str,
             2nd int is worst n days
         All provided tuples will be evaluated
     """
+    # Process tickers -> required for final column re-ordering, unable to rely on sub-funcs
+    tickers = parse_tickers_n_cols(tickers)
     # Make returns into absolute multiplier
     returns_df = calc_multi_returns(tickers, price_type, start, end) + 1
-    returns_df: pd.DataFrame
+    returns_df: pd.DataFrame # Explicitly typing the returns_df variable
+    # we must split columns to get ticker due to 'all' functionality
     returns_df.columns = [ticker + ' Final Value' for ticker in tickers]
     original_returns = returns_df.prod() * initial_inv
     compare_df = pd.DataFrame({'Original Returns': original_returns}).T
@@ -47,8 +51,7 @@ def missed_n_days(tickers: Iterable[str] | str,
         n_scens = (n_scens,)
     
     # For each scenario, calc the returns and append it to compare_df
-    for col in returns_df.columns:
-        ticker = col.split(' ')[0]
+    for ticker, col in zip(tickers, returns_df.columns):
         cagr_col = ticker + ' CAGR %'
         if (nadays := pd.isna(returns_df[col]).sum()) > 0:
             print(f'WARNING: {ticker} has {nadays} dates where there are no returns, ' +
@@ -286,14 +289,9 @@ def process_ticker_data(tickers: Iterable[str] | str,
         convert datetime to numpy datetime64[ms] for matplotlib auto plot setting
     """
     # Get all available tickers from db if 'all' is passed, else ensure single ticker is iterable
-    if isinstance(tickers, str):
-        if tickers == 'all':
-            tickers = get_all_tickers()
-        else:
-            tickers = (tickers,)
+    tickers = parse_tickers_n_cols(tickers)
     # make cols iterable if only a string is passed
-    if isinstance(cols, str):
-        cols = (cols,)
+    cols = parse_tickers_n_cols(cols)
     
     # Ensure that date is within the data pulled and not duplicated
     cols = ['date'] + [col for col in cols if col != 'date']
