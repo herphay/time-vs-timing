@@ -16,6 +16,7 @@ def main() -> None:
 
 def missed_n_days(tickers: Iterable[str] | str,
                   n_scens: Iterable[tuple[int, int]] | tuple[int, int] = ((10, 0),),
+                  returns_df: pd.DataFrame | None = None,
                   initial_inv: float = 10000,
                   price_type: str = 'adj_close',
                   start: str | None = None,
@@ -26,17 +27,24 @@ def missed_n_days(tickers: Iterable[str] | str,
     Calculate the final value & returns if n of the best/worst days are missed during a period.
 
     tickers: Iterable | str
-        tickers of which returns are to be considered
+        tickers of which returns are to be considered 
     n_scens: Iterable | tuple
         tuple of ints where 
-            1st int is the best n days to remove 
+            1st int is the best n days to remove    
             2nd int is worst n days
         All provided tuples will be evaluated
+    returns_df: pd.DataFrame | None
+        The daily returns DataFrame to be used to calc returns. Note: not the scaling ratio
     """
     # Process tickers -> required for final column re-ordering, unable to rely on sub-funcs
     tickers = parse_tickers_n_cols(tickers)
-    # Make returns into absolute multiplier
-    returns_df = calc_multi_returns(tickers, price_type, start, end) + 1
+
+    if returns_df is not None:
+        returns_df = (returns_df + 1)[start:end]
+    else:
+        # Make returns into absolute multiplier
+        returns_df = calc_multi_returns(tickers, price_type, start, end) + 1
+    
     returns_df: pd.DataFrame # Explicitly typing the returns_df variable
     # we must split columns to get ticker due to 'all' functionality
     returns_df.columns = [ticker + ' Final Value' for ticker in tickers]
@@ -61,17 +69,17 @@ def missed_n_days(tickers: Iterable[str] | str,
     # For each scenario, calc the returns and append it to compare_df
     for ticker, col in zip(tickers, returns_df.columns):
         cagr_col = ticker + ' CAGR %'
-        if (nadays := pd.isna(returns_df[col]).sum()) > 0:
+
+        # For tickers where start/end date are truncated to just the ticker's available date
+        if (nadays := pd.isna(returns_df[col]).sum()) > 1:
             print(f'WARNING: {ticker} has {nadays} dates where there are no returns, ' +
                   f"it's final value & CAGR cannot be properly compared to other tickers here.")
             # If there are multiple NaNs, deduct duration til the first valid data point from ndays
             col_days = ndays - ((~pd.isna(returns_df[col])).idxmax() - pd.to_datetime(start)).days
         else:
-            ...
             col_days = ndays
-        # col_days = ndays - nadays
+        
         inv_yrs = 365.25 / col_days
-        print(type((1 / inv_yrs)))
         durations[ticker] = round(1 / inv_yrs, 1)
 
         compare_df.loc['Original Returns', cagr_col] = ((compare_df.loc['Original Returns', col] / 
@@ -144,7 +152,7 @@ def calc_multi_returns(tickers: Iterable[str] | str,
     if output_format == 'df':
         data = data_df_constructor(data).pct_change()
         data.columns = data.columns.str.replace(price_type, 'daily returns')
-        return data.loc[start:end]
+        return data.loc[start:end] # Need to use .copy() if we don't want the full df to persist
     else:
         # Get the index location where user start date would be, used for earlier dates removal
         idx = (next(iter(data.values()))['date'] < pd.to_datetime(start)).sum()
