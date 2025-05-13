@@ -14,6 +14,114 @@ def main() -> None:
                   start='2003-01-01', end='2022-12-31', show_n=True)
 
 
+def summarize_returns(ticker_alloc: dict[str, float],
+                      initial_inv: float = 10000) -> pd.DataFrame:
+    """
+    Summarize the difference in returns for different investment strats across different periods.
+    """
+
+
+def multi_period_missed_n_days(
+        tickers: Iterable[str] | str,
+        n_scens: Iterable[tuple[int, int]] | tuple[int, int] = ((10, 0),),
+        period_start: str | None = None,
+        period_end: str | None = None,
+        period_len: str = '20y',
+        period_freq: str = 'MS',
+        initial_inv: float = 10000,
+        price_type: str = 'adj_close'
+        ) -> pd.DataFrame:
+    """
+    Summarize the difference in returns across rolling periods if n of the best/worst days are
+    missed during the period.
+    """
+    # 0: Set up basic data
+    tickers = parse_tickers_n_cols(tickers)
+
+    if not isinstance(n_scens[0], tuple):
+        n_scens = (n_scens,)
+    scen_names = [f'Missed {best_n}B, {worst_n}W' for best_n, worst_n in n_scens]
+
+    metrics = ('value_delta', 'value_pct', 'CAGR_delta')
+
+    # 1: get the returns for all relevant tickers & set start/end dates if its None
+    returns_df = calc_multi_returns(tickers, price_type, period_start, period_end)
+
+    if not period_start: period_start = returns_df.index[0]
+    if not period_end: period_end = returns_df.index[-1]
+
+    # 2: calc all the individual period start end & construct output df
+    # 2a: Get the period offset:
+    if 'y' in period_len:
+        period_len = pd.DateOffset(years=int(period_len.strip('y')))
+    elif 'm' in period_len:
+        period_len = pd.DateOffset(months=int(period_len.strip('m')))
+    elif 'd' in period_len:
+        period_len = pd.DateOffset(days=int(period_len.strip('d')))
+    else:
+        raise ValueError('Period must be an int followed by y, m, or d')
+
+    # 2b: Get the starting dates' range
+    starts_s = pd.to_datetime(period_start)            # Start of the starts
+    starts_e = pd.to_datetime(period_end) - period_len # End of the starts
+
+    # 2c: Get all starting and ending dates
+    starts = pd.date_range(starts_s, starts_e, freq=period_freq)
+    ends = pd.DatetimeIndex([s + period_len - pd.DateOffset(days=1) for s in starts])
+
+    # 2d: construct output df
+    cols = pd.MultiIndex.from_product([tickers, scen_names, metrics], 
+                                      names=['ticker', 'scen', 'metric'])
+    periods_data = pd.DataFrame(index=ends, columns=cols)
+
+    # 3: for each period, for each ticker, get the performance data
+    for start, end in zip(starts, ends):
+        # Slice returns_df to the current period
+        period_returns = returns_df.loc[start:end]
+
+        # Remove ticker from calculation if said ticker have missing data in the period
+        # If there are any NAs along the column, it will be excluded
+        full_data_cols = period_returns.columns[pd.notna(period_returns).all()]
+        period_returns = period_returns[full_data_cols]
+        period_tickers = period_returns.columns.str.split(' ').str[0]
+
+        # get the results, expected all to be calculated with the full data
+        results = missed_n_days(period_tickers, 
+                                n_scens, 
+                                returns_df=period_returns,
+                                start=start,
+                                end=end,
+                                show_results=False,
+                                show_warning=False)
+        
+        # Now calc the 3 desired metrics ('value_delta', 'value_pct', 'CAGR_dalta')
+        for scen in scen_names:
+            # Get absolute difference for Final Val & CAGR %
+            abs_delta = results.loc[scen] - results.loc['Original Returns']
+            abs_delta.index = abs_delta.index.str.replace('Final Value', 'value_delta') \
+                                             .str.replace('CAGR %', 'CAGR_delta')
+            # Get ratio of scen val to origin val
+            rel_delta = (results.loc[scen] / results.loc['Original Returns'] - 1) * 100
+            rel_delta.index = rel_delta.index.str.replace('Final Value', 'value_pct')
+
+            deltas = pd.concat([abs_delta, rel_delta])
+
+            #### It is expected that value_delta & CAGR_delta to change for each period.
+            #### This is because each period the overall growth % changes due to different
+            #### daily returns in the removed & added month.
+            #### However, value_pct can remain constant for long stretch of rolling periods.
+            #### This is due to the best/worst days being clustered together and when they 
+            #### are in the middle of a period, the overall growth effect of their removal
+            #### remains constant for all periods around that middle period.
+            
+            for ticker in period_tickers:
+                for metric in metrics:
+                    periods_data.loc[end, (ticker, scen, metric)] = deltas[f'{ticker} {metric}']
+
+    # 4: summarize the data for all periods
+    return periods_data
+
+
 def missed_n_days(tickers: Iterable[str] | str,
                   n_scens: Iterable[tuple[int, int]] | tuple[int, int] = ((10, 0),),
                   returns_df: pd.DataFrame | None = None,
@@ -22,7 +130,8 @@ def missed_n_days(tickers: Iterable[str] | str,
                   start: str | None = None,
                   end: str | None = None,
                   show_n: bool = False,
-                  show_results: bool = True) -> pd.DataFrame:
+                  show_results: bool = True,
+                  show_warning: bool =True) -> pd.DataFrame:
     """
     Calculate the final value & returns if n of the best/worst days are missed during a period.
 
@@ -52,16 +161,17 @@ def missed_n_days(tickers: Iterable[str] | str,
     compare_df = pd.DataFrame({'Original Returns': original_returns}).T
 
     # Assuming Period is valid (i.e. there is data from start to end dates) 
-    # Get period day count by assuming full period (inclu non-business days)
-    ndays = (pd.to_datetime(end) - pd.to_datetime(start)).days
+    # Get period day count by assuming full period (inclu non-business days) 
+    # +1 to the days as dates are inclusive
+    ndays = (pd.to_datetime(end) - pd.to_datetime(start)).days + 1
     # If day count pulled deviates more than 10 days (Typically there are only 3 days non-trading)
     # Then update the day count to the available data period
     if ndays > (returns_df.index[-1] - returns_df.index[0]).days + 10:
-        ndays = (returns_df.index[-1] - returns_df.index[0]).days
+        ndays = (returns_df.index[-1] - returns_df.index[0]).days + 1
         start = returns_df.index[0].strftime('%Y-%m-%d')
 
     durations = {}
-    print('\n\n')
+    if show_results: print('\n\n')
 
     if not isinstance(n_scens[0], tuple):
         n_scens = (n_scens,)
@@ -71,11 +181,11 @@ def missed_n_days(tickers: Iterable[str] | str,
         cagr_col = ticker + ' CAGR %'
 
         # For tickers where start/end date are truncated to just the ticker's available date
-        if (nadays := pd.isna(returns_df[col]).sum()) > 1:
+        if (nadays := pd.isna(returns_df[col]).sum()) > 1 and show_warning:
             print(f'WARNING: {ticker} has {nadays} dates where there are no returns, ' +
                   f"it's final value & CAGR cannot be properly compared to other tickers here.")
             # If there are multiple NaNs, deduct duration til the first valid data point from ndays
-            col_days = ndays - ((~pd.isna(returns_df[col])).idxmax() - pd.to_datetime(start)).days
+            col_days = ndays - ((~pd.isna(returns_df[col])).idxmax() - pd.to_datetime(start)).days - 1
         else:
             col_days = ndays
         
@@ -146,7 +256,10 @@ def calc_multi_returns(tickers: Iterable[str] | str,
         Use 'df' to return a DataFrame. Anything else defaults to a nested dict with np.ndarray
     """
     # Pull data earlier than user's start date so we can calc returns for the user's start date
-    new_start = (pd.to_datetime(start, format='%Y-%m-%d') - timedelta(days=7)).strftime('%Y-%m-%d')
+    if start:
+        new_start = (pd.to_datetime(start, format='%Y-%m-%d') - timedelta(days=7)).strftime('%Y-%m-%d')
+    else:
+        new_start = start
     data = process_ticker_data(tickers, price_type, new_start, end)
 
     if output_format == 'df':
