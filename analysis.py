@@ -148,16 +148,22 @@ def missed_n_days(tickers: Iterable[str] | str,
     # Process tickers -> required for final column re-ordering, unable to rely on sub-funcs
     tickers = parse_tickers_n_cols(tickers)
 
+    # Make returns into absolute multiplier
     if returns_df is not None:
         returns_df = (returns_df + 1)[start:end]
     else:
-        # Make returns into absolute multiplier
         returns_df = calc_multi_returns(tickers, price_type, start, end) + 1
     
     returns_df: pd.DataFrame # Explicitly typing the returns_df variable
-    # we must split columns to get ticker due to 'all' functionality
+    
     returns_df.columns = [ticker + ' Final Value' for ticker in tickers]
+    
+    # .prod() returns a pd.Series with the original df's columns as the index
     original_returns = returns_df.prod() * initial_inv
+
+    # When creating df with dict, the keys become the cols, 
+    # the values (if its a pd.Series) then become the row data with series idx as df idx
+    # Transposing return the idx (which are original df's cols) into the cols
     compare_df = pd.DataFrame({'Original Returns': original_returns}).T
 
     # Assuming Period is valid (i.e. there is data from start to end dates) 
