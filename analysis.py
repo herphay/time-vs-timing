@@ -10,8 +10,7 @@ from helpers import parse_tickers_n_cols
 def main() -> None:
     ...
     # normalize_multi_data(['VT', '^GSPC'], 'adj_close', '1927-12-30')
-    missed_n_days(['VT', '^GSPC', '^SP500TR', 'SHY'], [(10,0), (5,5)], 
-                  start='2003-01-01', end='2022-12-31', show_n=True)
+    multi_period_missed_n_days('^SP500TR', [(10,0), (5,5)], period_len='20y', period_start='1987-01-04')
 
 
 def summarize_returns(ticker_alloc: dict[str, float],
@@ -47,8 +46,13 @@ def multi_period_missed_n_days(
     # 1: get the returns for all relevant tickers & set start/end dates if its None
     returns_df = calc_multi_returns(tickers, price_type, period_start, period_end)
 
-    if not period_start: period_start = returns_df.index[0]
-    if not period_end: period_end = returns_df.index[-1]
+    start_of_returns = returns_df.index[0].strftime('%Y-%m-%d')
+    end_of_returns   = returns_df.index[-1].strftime('%Y-%m-%d')
+
+    if not period_start or period_start < start_of_returns: 
+        period_start = returns_df.index[0]
+    if not period_end or period_end > end_of_returns: 
+        period_end = returns_df.index[-1]
 
     # 2: calc all the individual period start end & construct output df
     # 2a: Get the period offset:
