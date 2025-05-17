@@ -99,10 +99,12 @@ def pull_ticker_id(ticker: str) -> int | None:
         return result[0] if result is not None else None
 
 
-def pull_ticker_data(ticker: str, 
-                     cols: str | None = None,
-                     start: str | None = None,
-                     end: str | None = None) -> list[tuple]:
+def pull_ticker_data(
+        ticker: str, 
+        cols: str | None = None,
+        start: str | None = None,
+        end: str | None = None
+    ) -> list[tuple]:
     """
     Pull historical data from the local database. Returns as rows.
     
@@ -129,7 +131,12 @@ def pull_ticker_data(ticker: str,
         return results.fetchall()
     
 
-def get_ticker_history_yfin(ticker: str, period=None, start=None, end=None) -> pd.DataFrame:
+def get_ticker_history_yfin(
+        ticker: str, 
+        period=None, 
+        start=None, 
+        end=None
+    ) -> pd.DataFrame:
     """
     ticker: str
         Yahoo Finance stock ticker e.g. ^GSPC for S&P500
@@ -215,7 +222,7 @@ def get_all_tickers() -> list[str]:
 def get_all_start_dates(
         to_print: bool = True,
         get_results: bool = False
-        ) -> dict[str, str]:
+    ) -> dict[str, str]:
     """Return a list of tuples with (ticker, earliest data available date)"""
     with sqlite3.connect('historical_data.db') as con:
         results =  con.execute("""SELECT ticker, MIN(date) FROM 

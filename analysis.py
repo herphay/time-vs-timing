@@ -13,12 +13,30 @@ def main() -> None:
     multi_period_missed_n_days('^SP500TR', [(10,0), (5,5)], period_len='20y', period_start='1987-01-04')
 
 
-def summarize_returns(ticker_alloc: dict[str, float],
-                      initial_inv: float = 10000) -> pd.DataFrame:
+def summarize_returns(
+        ticker_alloc: dict[str, float],
+        initial_inv: float = 10000
+    ) -> pd.DataFrame:
     """
     Summarize the difference in returns for different investment strats across different periods.
     """
 
+
+def peter_perfect(
+        ticker: str,
+        monthly_inv: float,
+        start: str,
+        end: str,
+        prices: pd.DataFrame | None
+    ) -> pd.DataFrame:
+    """
+    Calculates the final investment value and annualized returns of 'Peter Perfect', who is a perfect
+    market timer. He always buys at the lowest point in the remaining year.
+
+    The function only processes 1 ticker at a time, within a fixed period where ticker price data must 
+    exist. Every month, he will have an equal amount of cash available to be invested at the beginning.
+    """
+    ...
 
 def multi_period_missed_n_days(
         tickers: Iterable[str] | str,
@@ -29,7 +47,7 @@ def multi_period_missed_n_days(
         period_freq: str = 'MS',
         initial_inv: float = 10000,
         price_type: str = 'adj_close'
-        ) -> pd.DataFrame:
+    ) -> pd.DataFrame:
     """
     Summarize the difference in returns across rolling periods if n of the best/worst days are
     missed during the period.
@@ -126,16 +144,18 @@ def multi_period_missed_n_days(
     return periods_data
 
 
-def missed_n_days(tickers: Iterable[str] | str,
-                  n_scens: Iterable[tuple[int, int]] | tuple[int, int] = ((10, 0),),
-                  returns_df: pd.DataFrame | None = None,
-                  initial_inv: float = 10000,
-                  price_type: str = 'adj_close',
-                  start: str | None = None,
-                  end: str | None = None,
-                  show_n: bool = False,
-                  show_results: bool = True,
-                  show_warning: bool =True) -> pd.DataFrame:
+def missed_n_days(
+        tickers: Iterable[str] | str,
+        n_scens: Iterable[tuple[int, int]] | tuple[int, int] = ((10, 0),),
+        returns_df: pd.DataFrame | None = None,
+        initial_inv: float = 10000,
+        price_type: str = 'adj_close',
+        start: str | None = None,
+        end: str | None = None,
+        show_n: bool = False,
+        show_results: bool = True,
+        show_warning: bool =True
+    ) -> pd.DataFrame:
     """
     Calculate the final value & returns if n of the best/worst days are missed during a period.
 
@@ -246,12 +266,13 @@ def missed_n_days(tickers: Iterable[str] | str,
     return compare_df
 
 
-def calc_multi_returns(tickers: Iterable[str] | str,
-                       price_type: str = 'adj_close',
-                       start: str | None = None,
-                       end: str | None = None,
-                       output_format: str = 'df') -> pd.DataFrame | \
-                                                dict[str, dict[str, np.ndarray]]:
+def calc_multi_returns(
+        tickers: Iterable[str] | str,
+        price_type: str = 'adj_close',
+        start: str | None = None,
+        end: str | None = None,
+        output_format: str = 'df'
+    ) -> pd.DataFrame | dict[str, dict[str, np.ndarray]]:
     """
     Calculate each ticker's daily returns
 
@@ -291,13 +312,15 @@ def calc_multi_returns(tickers: Iterable[str] | str,
         return data
 
 
-def normalize_multi_data(tickers: Iterable[str] | str,
-                         data_col: str,
-                         ref_date: str,
-                         truncate: bool = False,
-                         same_ref: bool = True,
-                         start: str | None = None,
-                         end: str | None = None) -> pd.DataFrame:
+def normalize_multi_data(
+        tickers: Iterable[str] | str,
+        data_col: str,
+        ref_date: str,
+        truncate: bool = False,
+        same_ref: bool = True,
+        start: str | None = None,
+        end: str | None = None
+    ) -> pd.DataFrame:
     """
     Normalize multiple tickers' selected data where a specific date = 100%
 
@@ -388,8 +411,10 @@ def normalize_multi_data(tickers: Iterable[str] | str,
     return data_df
 
 
-def data_df_constructor(ticker_dict: dict[str, dict[str, np.ndarray]],
-                        truncate: bool = False) -> pd.DataFrame:
+def data_df_constructor(
+        ticker_dict: dict[str, dict[str, np.ndarray]],
+        truncate: bool = False
+    ) -> pd.DataFrame:
     """
     Takes in a ticker data dict in the specified form and transform it into a DataFrame
 
@@ -414,11 +439,13 @@ def data_df_constructor(ticker_dict: dict[str, dict[str, np.ndarray]],
     return merged_df
 
 
-def process_ticker_data(tickers: Iterable[str] | str, 
-                        cols: Iterable[str] | str, 
-                        start: str | None = None, 
-                        end: str | None = None,
-                        autodate: bool = True) -> dict[str, dict[str, np.ndarray]]:
+def process_ticker_data(
+        tickers: Iterable[str] | str, 
+        cols: Iterable[str] | str, 
+        start: str | None = None, 
+        end: str | None = None,
+        autodate: bool = True
+    ) -> dict[str, dict[str, np.ndarray]]:
     """
     Pull the required ticker data & process it into a dict of Numpy Arrays for each column
     which is then stored in a dict of tickers
