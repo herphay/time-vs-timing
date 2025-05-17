@@ -212,7 +212,10 @@ def get_all_tickers() -> list[str]:
         return [tup[0] for tup in results]
     
 
-def get_all_start_dates(to_print: bool) -> dict[str, str]:
+def get_all_start_dates(
+        to_print: bool = True,
+        get_results: bool = False
+        ) -> dict[str, str]:
     """Return a list of tuples with (ticker, earliest data available date)"""
     with sqlite3.connect('historical_data.db') as con:
         results =  con.execute("""SELECT ticker, MIN(date) FROM 
@@ -223,11 +226,12 @@ def get_all_start_dates(to_print: bool) -> dict[str, str]:
                                   ORDER BY MIN(date)
                                """).fetchall()
         if to_print:
-            print('Ticker: Earliest data')
+            results = [('Ticker', 'Earliest data')] + results
             for tup in results:
-                print(f'{tup[0]}: {tup[1]}')
+                print(f'{tup[0]:17}: {tup[1]}')
         
-        return dict(results)
+        if get_results:
+            return dict(results)
 
 def get_index_list() -> list[TickerInfo]:
     return [
