@@ -28,7 +28,7 @@ def peter_perfect(
         start: str,
         end: str,
         prices: pd.DataFrame | None
-    ) -> pd.DataFrame:
+    ) -> float:
     """
     Calculates the final investment value and annualized returns of 'Peter Perfect', who is a perfect
     market timer. He always buys at the lowest point in the remaining year.
@@ -36,7 +36,31 @@ def peter_perfect(
     The function only processes 1 ticker at a time, within a fixed period where ticker price data must 
     exist. Every month, he will have an equal amount of cash available to be invested at the beginning.
     """
-    ...
+    ticker = parse_tickers_n_cols(ticker)
+    if not prices:
+        prices = data_df_constructor(
+            process_ticker_data(
+                ticker,
+                'adj_close',
+                start=start,
+                end=end
+            )
+        )
+    else:
+        prices = prices[start:end]
+    
+    prices.columns = [ticker]
+
+    if (pd.to_datetime(start) - prices.index[0]).days < -4 or \
+       (pd.to_datetime(end) - prices.index[-1]).days > 4:
+        raise ValueError('start or end date is out of range of available price data')
+    
+    cash_dates = pd.date_range(start, end, freq='MS')
+
+    # pd.Series accessor (.sum or .iloc etc.) returns a scalar
+    purchase_prices = pd.Series([prices.loc[cash_date:str(cash_date.year), ticker].min() 
+                                 for cash_date in cash_dates])
+    return (prices.iloc[-1].values / purchase_prices).sum() * monthly_inv
 
 def multi_period_missed_n_days(
         tickers: Iterable[str] | str,
@@ -111,6 +135,7 @@ def multi_period_missed_n_days(
         results = missed_n_days(period_tickers, 
                                 n_scens, 
                                 returns_df=period_returns,
+                                initial_inv=initial_inv,
                                 start=start,
                                 end=end,
                                 show_results=False,
