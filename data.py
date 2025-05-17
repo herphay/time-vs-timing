@@ -28,7 +28,8 @@ def daily_scrapper() -> None:
     for ticker in benchmark_tickers:
         if ticker_scrapper(ticker):
             time.sleep(2.5)
-    print(f'\n########## Database updated for all {len(benchmark_tickers)} indices ##########')
+    print(f'\n########## Database updated for all {len(benchmark_tickers)} ' +
+           'benchmark indices ##########')
 
 
 def ticker_scrapper(ticker: str) -> bool:
@@ -109,7 +110,7 @@ def pull_ticker_data(ticker: str,
     cols: str
         Must be in format 'col1, col2, col3'    
     start/end: str
-        ISO 8601 (YYYY-MM-DD) format. Selecting [start:end) similar to yfinance
+        ISO 8601 (YYYY-MM-DD) format. Selecting [start:end]
         Defaults to earliest/latest dates if None
     """
     if not cols: cols = '*'
@@ -123,7 +124,7 @@ def pull_ticker_data(ticker: str,
                                            FROM tickers \
                                            WHERE ticker = ?) \
                         AND date >= ? \
-                        AND date < ? \
+                        AND date <= ? \
                     ", (ticker, start, end))
         return results.fetchall()
     
@@ -203,6 +204,30 @@ def update_db_tickers(tickers: list[TickerInfo]) -> None:
                         VALUES (?, ?, ?, ?, ?)
         """, ticker_details)
 
+
+def get_all_tickers() -> list[str]:
+    """Return list of all tickers currently available in the local database"""
+    with sqlite3.connect('historical_data.db') as con:
+        results = con.execute('SELECT ticker FROM tickers').fetchall()
+        return [tup[0] for tup in results]
+    
+
+def get_all_start_dates(to_print: bool) -> dict[str, str]:
+    """Return a list of tuples with (ticker, earliest data available date)"""
+    with sqlite3.connect('historical_data.db') as con:
+        results =  con.execute("""SELECT ticker, MIN(date) FROM 
+                                  tickers t JOIN
+                                  historical_data h
+                                  ON t.ticker_id = h.ticker_id
+                                  GROUP BY ticker
+                                  ORDER BY MIN(date)
+                               """).fetchall()
+        if to_print:
+            print('Ticker: Earliest data')
+            for tup in results:
+                print(f'{tup[0]}: {tup[1]}')
+        
+        return dict(results)
 
 def get_index_list() -> list[TickerInfo]:
     return [
