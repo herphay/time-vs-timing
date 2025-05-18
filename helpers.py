@@ -1,3 +1,6 @@
+import numpy as np
+import pandas as pd
+import scipy as sp
 from collections.abc import Iterable
 
 from data import get_all_tickers
@@ -15,7 +18,9 @@ def parse_tickers_n_cols(
     return items
 
 def xirr(
-        cashflows
+        cashflows: pd.Series,
+        rate_guess: float = 0.1,
+        days_in_yr: float = 365
     ) -> float:
     ...
 

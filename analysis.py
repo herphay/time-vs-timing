@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from collections.abc import Iterable
 
 from data import pull_ticker_data
-from helpers import parse_tickers_n_cols
+from helpers import parse_tickers_n_cols, xirr
 
 def main() -> None:
     ...
@@ -28,7 +28,7 @@ def peter_perfect(
         monthly_inv: float,
         start: str,
         end: str,
-        prices: pd.DataFrame | None
+        prices: pd.DataFrame | None = None
     ) -> float:
     """
     Calculates the final investment value and annualized returns of 'Peter Perfect', who is a perfect
@@ -37,7 +37,9 @@ def peter_perfect(
     The function only processes 1 ticker at a time, within a fixed period where ticker price data must 
     exist. Every month, he will have an equal amount of cash available to be invested at the beginning.
     """
-    # ticker = parse_tickers_n_cols(ticker)[0]
+    # ticker = parse_tickers_n_cols(ticker)[0] # Not needed as we only expect a singular ticker
+    # To squeeze df into pd.Series to avoid needing to access df col in the purchase price loop
+    # Saved ~0.6ms per run for 53 month loop run
     if not prices:
         prices = data_df_constructor(
             process_ticker_data(
@@ -56,12 +58,28 @@ def peter_perfect(
        (pd.to_datetime(end) - prices.index[-1]).days > 4:
         raise ValueError('start or end date is out of range of available price data')
     
+    # Create datetime index for every month in range, this is the date cash is available for investing
     cash_dates = pd.date_range(start, end, freq='MS')
 
     # pd.Series accessor (.sum or .iloc etc.) returns a scalar
+    # For each month, peter_perfect will buy at the lowest price point of the remaining year
     purchase_prices = pd.Series([prices.loc[cash_date:str(cash_date.year)].min() 
                                  for cash_date in cash_dates])
-    return (prices.iloc[-1] / purchase_prices).sum() * monthly_inv
+    
+    # Final investment value is MtM on the last day of the period
+    final_val = (prices.iloc[-1] / purchase_prices).sum() * monthly_inv
+
+    # Total invested amount over the period (with no discounting) is calculated
+    total_invested = monthly_inv * len(cash_dates)
+
+    # Create cashflow series with datetime index & cashflow values. Final value appended to the end
+    cashflows = pd.Series(-monthly_inv, index=cash_dates)
+    cashflows.loc[prices.index[-1]] = final_val
+
+    # Calculate the XIRR
+    return_rate = xirr(cashflows=cashflows)
+
+    return total_invested, final_val, return_rate
 
 def multi_period_missed_n_days(
         tickers: Iterable[str] | str,
