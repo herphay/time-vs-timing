@@ -23,10 +23,12 @@ def plot_df(df: pd.DataFrame) -> None:
     df.plot(ax=ax)
     plt.show()
 
-def plot_day_range(ticker: str, 
-                   start: str | None = None, 
-                   end: str | None = None, 
-                   autodate: bool = True) -> None:
+def plot_day_range(
+        ticker: str, 
+        start: str | None = None, 
+        end: str | None = None, 
+        autodate: bool = True
+    ) -> None:
     """
     ticker: str
     start/end: str
@@ -49,10 +51,12 @@ def plot_day_range(ticker: str,
     # plt.show(block=False) # For interactive mode but the moment the local function context ends, plot will also close
 
 
-def plot_composite(ticker: str, 
-                   start: str | None = None, 
-                   end: str | None = None, 
-                   autodate: bool = True) -> None:
+def plot_composite(
+        ticker: str, 
+        start: str | None = None, 
+        end: str | None = None, 
+        autodate: bool = True
+    ) -> None:
     """
     ticker: str
     start/end: str
@@ -83,11 +87,13 @@ def plot_composite(ticker: str,
     # plt.show(block=False)
 
 
-def plot_single(ticker: str, 
-                col: str,
-                start: str | None = None, 
-                end: str | None = None, 
-                autodate: bool = True) -> None:
+def plot_single(
+        ticker: str, 
+        col: str,
+        start: str | None = None, 
+        end: str | None = None, 
+        autodate: bool = True
+    ) -> None:
     """
     ticker: str
     col: str
@@ -117,7 +123,10 @@ def plot_single(ticker: str,
 #             for col_name, col_data
 #             in col_datas}
 
-def get_date_idx(length: int, bins: int) -> list[int]:
+def get_date_idx(
+        length: int, 
+        bins: int
+    ) -> list[int]:
     """Calculate evenly spaced index positions for chart plotting"""
     bins = min(bins, length)
     if bins == 1:
@@ -125,12 +134,14 @@ def get_date_idx(length: int, bins: int) -> list[int]:
     return [round(pos * (length - 1) / (bins - 1)) for pos in range(bins - 1)] + [length - 1]
 
 
-def setup_plot_elements(title: str,
-                        xlabel: str = 'Dates', 
-                        ylabel: str = 'Price',
-                        dates: np.ndarray | None = None,
-                        manual_fmt: bool = True,
-                        autodate: bool = True) -> plt.Axes:
+def setup_plot_elements(
+        title: str,
+        xlabel: str = 'Dates', 
+        ylabel: str = 'Price',
+        dates: np.ndarray | None = None,
+        manual_fmt: bool = True,
+        autodate: bool = True
+    ) -> plt.Axes:
     """
     Set up a plot and all basic elements including tick locations
 
@@ -157,10 +168,12 @@ def setup_plot_elements(title: str,
     return ax
 
 
-def manual_set_xaxis(ax: plt.Axes,
-                     fig: plt.Figure,
-                     dates: np.array,
-                     autodate: bool) -> None:
+def manual_set_xaxis(
+        ax: plt.Axes,
+        fig: plt.Figure,
+        dates: np.array,
+        autodate: bool
+    ) -> None:
     """
     For manual plotting of x-axis where we want a specific manual formatting method
     """
