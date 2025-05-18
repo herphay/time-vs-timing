@@ -10,7 +10,8 @@ from helpers import parse_tickers_n_cols
 def main() -> None:
     ...
     # normalize_multi_data(['VT', '^GSPC'], 'adj_close', '1927-12-30')
-    multi_period_missed_n_days('^SP500TR', [(10,0), (5,5)], period_len='20y', period_start='1987-01-04')
+    # multi_period_missed_n_days('^SP500TR', [(10,0), (5,5)], period_len='20y', period_start='1987-01-04')
+    peter_perfect('^SP500TR', 1000, '2020-11-01', '2025-03-31', None)
 
 
 def summarize_returns(
@@ -36,7 +37,7 @@ def peter_perfect(
     The function only processes 1 ticker at a time, within a fixed period where ticker price data must 
     exist. Every month, he will have an equal amount of cash available to be invested at the beginning.
     """
-    ticker = parse_tickers_n_cols(ticker)
+    # ticker = parse_tickers_n_cols(ticker)[0]
     if not prices:
         prices = data_df_constructor(
             process_ticker_data(
@@ -45,11 +46,11 @@ def peter_perfect(
                 start=start,
                 end=end
             )
-        )
+        ).squeeze()
     else:
-        prices = prices[start:end]
+        prices = prices[start:end].squeeze()
     
-    prices.columns = [ticker]
+    # prices.columns = [ticker]
 
     if (pd.to_datetime(start) - prices.index[0]).days < -4 or \
        (pd.to_datetime(end) - prices.index[-1]).days > 4:
@@ -58,9 +59,9 @@ def peter_perfect(
     cash_dates = pd.date_range(start, end, freq='MS')
 
     # pd.Series accessor (.sum or .iloc etc.) returns a scalar
-    purchase_prices = pd.Series([prices.loc[cash_date:str(cash_date.year), ticker].min() 
+    purchase_prices = pd.Series([prices.loc[cash_date:str(cash_date.year)].min() 
                                  for cash_date in cash_dates])
-    return (prices.iloc[-1].values / purchase_prices).sum() * monthly_inv
+    return (prices.iloc[-1] / purchase_prices).sum() * monthly_inv
 
 def multi_period_missed_n_days(
         tickers: Iterable[str] | str,

@@ -13,3 +13,20 @@ def parse_tickers_n_cols(
         else:
             items = (items,)
     return items
+
+def xirr(
+        cashflows
+    ) -> float:
+    ...
+
+
+def xnpv(
+        cashflows
+    ) -> float:
+    ...
+
+
+def xnpv_prime(
+        cashflows
+    ) -> float:
+    ...
