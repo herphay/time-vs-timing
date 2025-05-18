@@ -11,7 +11,8 @@ def main() -> None:
     ...
     # normalize_multi_data(['VT', '^GSPC'], 'adj_close', '1927-12-30')
     # multi_period_missed_n_days('^SP500TR', [(10,0), (5,5)], period_len='20y', period_start='1987-01-04')
-    peter_perfect('^SP500TR', 1000, '2020-11-01', '2025-03-31', None)
+    peter_perfect('^SP500TR', 1000, '2020-11-01', '2025-03-31', None) 
+    # 53000, np.float64(73180.20001085883), np.float64(0.14656691031117552)
 
 
 def summarize_returns(
@@ -20,6 +21,36 @@ def summarize_returns(
     ) -> pd.DataFrame:
     """
     Summarize the difference in returns for different investment strats across different periods.
+    """
+
+
+def ashley_action():
+    """
+    Calculates the final investment value and annualized returns of 'Ashley Action', who invests her
+    monthly savings the next business day after she gets it.
+
+    The function only processes 1 ticker at a time, within a fixed period where ticker price data must 
+    exist. Every month, she will have an equal amount of cash available to be invested at the beginning.
+    """
+
+
+def celeste_combine():
+    """
+    Calculates the final investment value and annualized returns of 'Celeste Combine', who combines 
+    her monthly savings until the end of each defined DCA period before investing it.
+
+    The function only processes 1 ticker at a time, within a fixed period where ticker price data must 
+    exist. Every month, she will have an equal amount of cash available to be invested at the beginning.
+    """
+
+
+def roise_rotton():
+    """
+    Calculates the final investment value and annualized returns of 'Roise Rotton', who has the worst 
+    luck or most imperfect market timer. She always buys at the highest point in the remaining year.
+
+    The function only processes 1 ticker at a time, within a fixed period where ticker price data must 
+    exist. Every month, she will have an equal amount of cash available to be invested at the beginning.
     """
 
 
