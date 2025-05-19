@@ -11,7 +11,7 @@ def main() -> None:
     ...
     # normalize_multi_data(['VT', '^GSPC'], 'adj_close', '1927-12-30')
     # multi_period_missed_n_days('^SP500TR', [(10,0), (5,5)], period_len='20y', period_start='1987-01-04')
-    peter_perfect('^SP500TR', 1000, '2020-11-01', '2025-03-31', None) 
+    ashley_action('^SP500TR', 1000, '2020-11-01', '2025-03-31')
     # 53000, np.float64(73180.20001085883), np.float64(0.14656691031117552)
 
 
@@ -24,7 +24,13 @@ def summarize_returns(
     """
 
 
-def ashley_action():
+def ashley_action(
+        ticker: str,
+        monthly_inv: float,
+        start: str,
+        end: str,
+        prices: pd.DataFrame | None = None
+    ) -> tuple[float, float, float]:
     """
     Calculates the final investment value and annualized returns of 'Ashley Action', who invests her
     monthly savings the next business day after she gets it.
@@ -32,6 +38,33 @@ def ashley_action():
     The function only processes 1 ticker at a time, within a fixed period where ticker price data must 
     exist. Every month, she will have an equal amount of cash available to be invested at the beginning.
     """
+    if not prices:
+        prices = data_df_constructor(
+            process_ticker_data(
+                ticker,
+                'adj_close',
+                start=start,
+                end=end
+            )
+        ).squeeze()
+    else:
+        prices = prices[start:end].squeeze()
+    
+    cash_dates = pd.date_range(start, end, freq='MS')
+
+    purchase_prices = pd.Series([prices.loc[cdate:cdate + pd.Timedelta(days=4)].iloc[0] 
+                                 for cdate in cash_dates])
+    
+    final_val = (prices.iloc[-1] / purchase_prices).sum() * monthly_inv
+
+    total_invested = monthly_inv * len(cash_dates)
+
+    cashflows = pd.Series(-monthly_inv, index=cash_dates)
+    cashflows.loc[prices.index[-1]] = final_val
+
+    returns = xirr(cashflows=cashflows)
+
+    return total_invested, final_val, returns
 
 
 def celeste_combine():
@@ -60,7 +93,7 @@ def peter_perfect(
         start: str,
         end: str,
         prices: pd.DataFrame | None = None
-    ) -> float:
+    ) -> tuple[float, float, float]:
     """
     Calculates the final investment value and annualized returns of 'Peter Perfect', who is a perfect
     market timer. He always buys at the lowest point in the remaining year.
