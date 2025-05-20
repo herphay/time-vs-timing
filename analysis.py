@@ -48,7 +48,11 @@ def ashley_action(
             )
         ).squeeze()
     else:
-        prices = prices[start:end].squeeze()
+        prices = prices.loc[start:end].squeeze()
+    
+    if (pd.to_datetime(start) - prices.index[0]).days < -4 or \
+       (pd.to_datetime(end) - prices.index[-1]).days > 4:
+        raise ValueError('start or end date is out of range of available price data')
     
     cash_dates = pd.date_range(start, end, freq='MS')
 
@@ -62,9 +66,9 @@ def ashley_action(
     cashflows = pd.Series(-monthly_inv, index=cash_dates)
     cashflows.loc[prices.index[-1]] = final_val
 
-    returns = xirr(cashflows=cashflows)
+    return_rate = xirr(cashflows=cashflows)
 
-    return total_invested, final_val, returns
+    return total_invested, final_val, return_rate
 
 
 def celeste_combine():
@@ -77,7 +81,13 @@ def celeste_combine():
     """
 
 
-def roise_rotton():
+def roise_rotton(
+        ticker: str,
+        monthly_inv: float,
+        start: str,
+        end: str,
+        prices: pd.DataFrame | None = None
+    ) -> tuple[float, float, float]:
     """
     Calculates the final investment value and annualized returns of 'Roise Rotton', who has the worst 
     luck or most imperfect market timer. She always buys at the highest point in the remaining year.
@@ -85,6 +95,37 @@ def roise_rotton():
     The function only processes 1 ticker at a time, within a fixed period where ticker price data must 
     exist. Every month, she will have an equal amount of cash available to be invested at the beginning.
     """
+    if not prices:
+        prices = data_df_constructor(
+            process_ticker_data(
+                ticker,
+                'adj_close',
+                start=start,
+                end=end
+            )
+        ).squeeze()
+    else:
+        prices = prices.loc[start:end].squeeze()
+    
+    if (pd.to_datetime(start) - prices.index[0]).days < -4 or \
+       (pd.to_datetime(end) - prices.index[-1]).days > 4:
+        raise ValueError('start or end date is out of range of available price data')
+    
+    cash_dates = pd.date_range(start, end, freq='MS')
+
+    purchase_prices = pd.Series([prices.loc[cash_date:str(cash_date.year)].max() 
+                                 for cash_date in cash_dates])
+    
+    final_val = (prices.iloc[-1] / purchase_prices).sum() * monthly_inv
+
+    total_invested = monthly_inv * len(cash_dates)
+
+    cashflows = pd.Series(-monthly_inv, index=cash_dates)
+    cashflows.loc[prices.index[-1]] = final_val
+
+    return_rate = xirr(cashflows=cashflows)
+
+    return total_invested, final_val, return_rate
 
 
 def peter_perfect(
@@ -114,7 +155,7 @@ def peter_perfect(
             )
         ).squeeze()
     else:
-        prices = prices[start:end].squeeze()
+        prices = prices.loc[start:end].squeeze()
     
     # prices.columns = [ticker]
 
