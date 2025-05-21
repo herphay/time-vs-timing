@@ -11,7 +11,9 @@ def main() -> None:
     ...
     # normalize_multi_data(['VT', '^GSPC'], 'adj_close', '1927-12-30')
     # multi_period_missed_n_days('^SP500TR', [(10,0), (5,5)], period_len='20y', period_start='1987-01-04')
-    peter_perfect('^SP500TR', 1000, '2020-11-01', '2025-03-31', None)
+    # peter_perfect('^SP500TR', 1000, '2020-11-01', '2025-03-31')
+    celeste_combine('^SP500TR', 1000, 3, '2025-01-01', '2025-04-25')
+    # 53000, np.float64(73180.20001085883), np.float64(0.14656691031117552)
 
 
 def summarize_returns(
@@ -23,13 +25,164 @@ def summarize_returns(
     """
 
 
+def ashley_action(
+        ticker: str,
+        monthly_inv: float,
+        start: str,
+        end: str,
+        prices: pd.DataFrame | None = None
+    ) -> tuple[float, float, float]:
+    """
+    Calculates the final investment value and annualized returns of 'Ashley Action', who invests her
+    monthly savings the next business day after she gets it.
+
+    The function only processes 1 ticker at a time, within a fixed period where ticker price data must 
+    exist. Every month, she will have an equal amount of cash available to be invested at the beginning.
+    """
+    if not prices:
+        prices = data_df_constructor(
+            process_ticker_data(
+                ticker,
+                'adj_close',
+                start=start,
+                end=end
+            )
+        ).squeeze()
+    else:
+        prices = prices.loc[start:end].squeeze()
+    
+    if (pd.to_datetime(start) - prices.index[0]).days < -4 or \
+       (pd.to_datetime(end) - prices.index[-1]).days > 4:
+        raise ValueError('start or end date is out of range of available price data')
+    
+    cash_dates = pd.date_range(start, end, freq='MS')
+
+    purchase_prices = pd.Series([prices.loc[cdate:cdate + pd.Timedelta(days=4)].iloc[0] 
+                                 for cdate in cash_dates])
+    
+    final_val = (prices.iloc[-1] / purchase_prices).sum() * monthly_inv
+
+    total_invested = monthly_inv * len(cash_dates)
+
+    cashflows = pd.Series(-monthly_inv, index=cash_dates)
+    cashflows.loc[prices.index[-1]] = final_val
+
+    return_rate = xirr(cashflows=cashflows)
+
+    return total_invested, final_val, return_rate
+
+
+def celeste_combine(
+        ticker: str,
+        monthly_inv: float,
+        inv_freq: int,
+        start: str,
+        end: str,
+        prices: pd.DataFrame | None = None
+    ) -> tuple[float, float, float]:
+    """
+    Calculates the final investment value and annualized returns of 'Celeste Combine', who combines 
+    her monthly savings until the end of each defined DCA period before investing it.
+
+    The function only processes 1 ticker at a time, within a fixed period where ticker price data must 
+    exist. Every month, she will have an equal amount of cash available to be invested at the beginning.
+
+    inv_freq: int
+        Number of periods of accumulation
+    """
+    if not prices:
+        prices = data_df_constructor(
+            process_ticker_data(
+                ticker,
+                'adj_close',
+                start=start,
+                end=end
+            )
+        ).squeeze()
+    else:
+        prices = prices.loc[start:end].squeeze()
+    
+    cash_dates = pd.date_range(start, end, freq='MS')
+    if (remiainder := len(cash_dates) % inv_freq) != 0:
+        purchase_dates = cash_dates[inv_freq - 1:-1:inv_freq]
+    else:
+        purchase_dates = cash_dates[inv_freq - 1::inv_freq]
+
+    purchase_prices = pd.Series([prices.loc[buy_date:buy_date + pd.Timedelta(days=4)].iloc[0] 
+                                 for buy_date in purchase_dates])
+    
+    final_val = (prices.iloc[-1] / purchase_prices).sum() * monthly_inv * inv_freq
+
+    if remiainder != 0:
+        final_val += (prices.iloc[-1] / 
+                     prices.loc[cash_dates[-1]:cash_dates[-1] + pd.Timedelta(days=4)].iloc[0]).sum() * \
+                     monthly_inv * remiainder
+    
+    total_invested = monthly_inv * len(cash_dates)
+
+    cashflows = pd.Series(-monthly_inv, index=cash_dates)
+    cashflows.loc[prices.index[-1]] = final_val
+
+    return_rate = xirr(cashflows=cashflows)
+
+    return total_invested, final_val, return_rate
+
+
+
+def roise_rotton(
+        ticker: str,
+        monthly_inv: float,
+        start: str,
+        end: str,
+        prices: pd.DataFrame | None = None
+    ) -> tuple[float, float, float]:
+    """
+    Calculates the final investment value and annualized returns of 'Roise Rotton', who has the worst 
+    luck or most imperfect market timer. She always buys at the highest point in the remaining year.
+
+    The function only processes 1 ticker at a time, within a fixed period where ticker price data must 
+    exist. Every month, she will have an equal amount of cash available to be invested at the beginning.
+    """
+    if not prices:
+        prices = data_df_constructor(
+            process_ticker_data(
+                ticker,
+                'adj_close',
+                start=start,
+                end=end
+            )
+        ).squeeze()
+    else:
+        prices = prices.loc[start:end].squeeze()
+    
+    if (pd.to_datetime(start) - prices.index[0]).days < -4 or \
+       (pd.to_datetime(end) - prices.index[-1]).days > 4:
+        raise ValueError('start or end date is out of range of available price data')
+    
+    cash_dates = pd.date_range(start, end, freq='MS')
+
+    purchase_prices = pd.Series([prices.loc[cash_date:str(cash_date.year)].max() 
+                                 for cash_date in cash_dates])
+    
+    final_val = (prices.iloc[-1] / purchase_prices).sum() * monthly_inv
+
+    total_invested = monthly_inv * len(cash_dates)
+
+    cashflows = pd.Series(-monthly_inv, index=cash_dates)
+    cashflows.loc[prices.index[-1]] = final_val
+
+    return_rate = xirr(cashflows=cashflows)
+
+    return total_invested, final_val, return_rate
+
+
 def peter_perfect(
         ticker: str,
         monthly_inv: float,
         start: str,
         end: str,
         prices: pd.DataFrame | None = None
-    ) -> float:
+    ) -> tuple[float, float, float]:
     """
     Calculates the final investment value and annualized returns of 'Peter Perfect', who is a perfect
     market timer. He always buys at the lowest point in the remaining year.
@@ -50,7 +203,7 @@ def peter_perfect(
             )
         ).squeeze()
     else:
-        prices = prices[start:end].squeeze()
+        prices = prices.loc[start:end].squeeze()
     
     # prices.columns = [ticker]
 
