@@ -4,16 +4,28 @@ import pandas as pd
 from datetime import datetime, timedelta
 from collections.abc import Iterable
 
-from data import pull_ticker_data
-from helpers import parse_tickers_n_cols, xirr
+from helpers import xirr, parse_prices_for_inv_style
+from helpers import parse_tickers_n_cols, process_ticker_data, data_df_constructor
 
 def main() -> None:
     ...
     # normalize_multi_data(['VT', '^GSPC'], 'adj_close', '1927-12-30')
     # multi_period_missed_n_days('^SP500TR', [(10,0), (5,5)], period_len='20y', period_start='1987-01-04')
-    # peter_perfect('^SP500TR', 1000, '2020-11-01', '2025-03-31')
-    celeste_combine('^SP500TR', 1000, 3, '2025-01-01', '2025-04-25')
-    # 53000, np.float64(73180.20001085883), np.float64(0.14656691031117552)
+
+    # inv_styles_returns('^SP500TR', 1000, '2020-11-01', '2025-03-31', inv_style='peter_perfect')
+    # (53000, np.float64(73180.20001085883), np.float64(0.14656691031117552))
+
+    # inv_styles_returns('^SP500TR', 1000, '2020-11-01', '2025-03-31', 
+    #                    inv_style='celeste_combine', dca_period=1)
+    # inv_styles_returns('^SP500TR', 1000, '2020-11-01', '2025-03-31', inv_style='ashley_action')
+    # (53000, np.float64(69369.89797766194), np.float64(0.12183098321330998))
+
+    inv_styles_returns('^SP500TR', 1000, '2020-11-01', '2025-03-31', 
+                       inv_style='celeste_combine', dca_period=3)
+    # (53000, np.float64(68787.92414812635), np.float64(0.11795062533914513))
+
+    # inv_styles_returns('^SP500TR', 1000, '2020-11-01', '2025-03-31', inv_style='roise_rotton')
+    # (53000, np.float64(62344.12557839035), np.float64(0.07297871365153119))
 
 
 def summarize_returns(
@@ -26,213 +38,112 @@ def summarize_returns(
 
 
 def ashley_action(
-        ticker: str,
-        monthly_inv: float,
-        start: str,
-        end: str,
-        prices: pd.DataFrame | None = None
-    ) -> tuple[float, float, float]:
+        cash_dates: pd.DatetimeIndex,
+        prices: pd.DataFrame
+    ) -> pd.Series:
     """
-    Calculates the final investment value and annualized returns of 'Ashley Action', who invests her
-    monthly savings the next business day after she gets it.
-
-    The function only processes 1 ticker at a time, within a fixed period where ticker price data must 
-    exist. Every month, she will have an equal amount of cash available to be invested at the beginning.
+    Calculates the purchase price of each month's invested amount for 'Ashley Action', who invests 
+    her monthly savings the next business day after she gets it.
     """
-    if not prices:
-        prices = data_df_constructor(
-            process_ticker_data(
-                ticker,
-                'adj_close',
-                start=start,
-                end=end
-            )
-        ).squeeze()
-    else:
-        prices = prices.loc[start:end].squeeze()
-    
-    if (pd.to_datetime(start) - prices.index[0]).days < -4 or \
-       (pd.to_datetime(end) - prices.index[-1]).days > 4:
-        raise ValueError('start or end date is out of range of available price data')
-    
-    cash_dates = pd.date_range(start, end, freq='MS')
-
-    purchase_prices = pd.Series([prices.loc[cdate:cdate + pd.Timedelta(days=4)].iloc[0] 
-                                 for cdate in cash_dates])
-    
-    final_val = (prices.iloc[-1] / purchase_prices).sum() * monthly_inv
-
-    total_invested = monthly_inv * len(cash_dates)
-
-    cashflows = pd.Series(-monthly_inv, index=cash_dates)
-    cashflows.loc[prices.index[-1]] = final_val
-
-    return_rate = xirr(cashflows=cashflows)
-
-    return total_invested, final_val, return_rate
+    return pd.Series(prices.iloc[prices.index.get_indexer(cash_dates, method='bfill')])
 
 
 def celeste_combine(
-        ticker: str,
-        monthly_inv: float,
-        inv_freq: int,
-        start: str,
-        end: str,
-        prices: pd.DataFrame | None = None
-    ) -> tuple[float, float, float]:
+        cash_dates: pd.DatetimeIndex,
+        prices: pd.DataFrame,
+        dca_period: int
+    ) -> pd.Series:
     """
-    Calculates the final investment value and annualized returns of 'Celeste Combine', who combines 
-    her monthly savings until the end of each defined DCA period before investing it.
-
-    The function only processes 1 ticker at a time, within a fixed period where ticker price data must 
-    exist. Every month, she will have an equal amount of cash available to be invested at the beginning.
+    Calculates the purchase price of each month's invested amount for 'Celeste Combine', who 
+    combines her monthly savings until the end of each defined DCA period before investing it.
 
     inv_freq: int
         Number of periods of accumulation
     """
-    if not prices:
-        prices = data_df_constructor(
-            process_ticker_data(
-                ticker,
-                'adj_close',
-                start=start,
-                end=end
-            )
-        ).squeeze()
-    else:
-        prices = prices.loc[start:end].squeeze()
-    
-    cash_dates = pd.date_range(start, end, freq='MS')
-    if (remiainder := len(cash_dates) % inv_freq) != 0:
-        purchase_dates = cash_dates[inv_freq - 1:-1:inv_freq]
-    else:
-        purchase_dates = cash_dates[inv_freq - 1::inv_freq]
+    # Returns numpy array of ilocs for the next closest date (due to backfill)
+    potential_buy_dates = prices.index.get_indexer(cash_dates, method='bfill')
 
-    purchase_prices = pd.Series([prices.loc[buy_date:buy_date + pd.Timedelta(days=4)].iloc[0] 
-                                 for buy_date in purchase_dates])
-    
-    final_val = (prices.iloc[-1] / purchase_prices).sum() * monthly_inv * inv_freq
+    num_dates = len(cash_dates) 
+    # // is floor division (divide then round down), get the block number for the dates, 1 index
+    dca_block = np.arange(num_dates) // dca_period + 1 
+    # calc the block's last element's index (the DCA date) as 0 index, and limit it to the max idx
+    dca_date_iloc = np.minimum(dca_block * dca_period - 1, num_dates - 1)
 
-    if remiainder != 0:
-        final_val += (prices.iloc[-1] / 
-                     prices.loc[cash_dates[-1]:cash_dates[-1] + pd.Timedelta(days=4)].iloc[0]).sum() * \
-                     monthly_inv * remiainder
-    
-    total_invested = monthly_inv * len(cash_dates)
-
-    cashflows = pd.Series(-monthly_inv, index=cash_dates)
-    cashflows.loc[prices.index[-1]] = final_val
-
-    return_rate = xirr(cashflows=cashflows)
-
-    return total_invested, final_val, return_rate
+    return prices.iloc[potential_buy_dates[dca_date_iloc]]
 
 
-
-def roise_rotton(
-        ticker: str,
-        monthly_inv: float,
-        start: str,
-        end: str,
-        prices: pd.DataFrame | None = None
-    ) -> tuple[float, float, float]:
+def roise_rotten(
+        cash_dates: pd.DatetimeIndex,
+        prices: pd.DataFrame
+    ) -> pd.Series:
     """
-    Calculates the final investment value and annualized returns of 'Roise Rotton', who has the worst 
+    Calculates the purchase price of each month's invested amount for 'Roise Rotton', who has the worst 
     luck or most imperfect market timer. She always buys at the highest point in the remaining year.
-
-    The function only processes 1 ticker at a time, within a fixed period where ticker price data must 
-    exist. Every month, she will have an equal amount of cash available to be invested at the beginning.
     """
-    if not prices:
-        prices = data_df_constructor(
-            process_ticker_data(
-                ticker,
-                'adj_close',
-                start=start,
-                end=end
-            )
-        ).squeeze()
-    else:
-        prices = prices.loc[start:end].squeeze()
-    
-    if (pd.to_datetime(start) - prices.index[0]).days < -4 or \
-       (pd.to_datetime(end) - prices.index[-1]).days > 4:
-        raise ValueError('start or end date is out of range of available price data')
-    
-    cash_dates = pd.date_range(start, end, freq='MS')
-
-    purchase_prices = pd.Series([prices.loc[cash_date:str(cash_date.year)].max() 
-                                 for cash_date in cash_dates])
-    
-    final_val = (prices.iloc[-1] / purchase_prices).sum() * monthly_inv
-
-    total_invested = monthly_inv * len(cash_dates)
-
-    cashflows = pd.Series(-monthly_inv, index=cash_dates)
-    cashflows.loc[prices.index[-1]] = final_val
-
-    return_rate = xirr(cashflows=cashflows)
-
-    return total_invested, final_val, return_rate
+    return pd.Series([prices[cdate:str(cdate.year)].max() for cdate in cash_dates])
 
 
 def peter_perfect(
+        cash_dates: pd.DatetimeIndex,
+        prices: pd.DataFrame
+    ) -> pd.Series:
+    """
+    Calculates the purchase price of each month's invested amount for 'Peter Perfect', who is a perfect
+    market timer. He always buys at the lowest point in the remaining year.
+    """
+    return pd.Series([prices[cdate:str(cdate.year)].min() for cdate in cash_dates])
+
+
+def inv_styles_returns(
         ticker: str,
         monthly_inv: float,
         start: str,
         end: str,
-        prices: pd.DataFrame | None = None
+        prices: pd.DataFrame | None = None,
+        inv_style: str = 'ashley_action',
+        dca_period: int = 3
     ) -> tuple[float, float, float]:
     """
-    Calculates the final investment value and annualized returns of 'Peter Perfect', who is a perfect
-    market timer. He always buys at the lowest point in the remaining year.
+    Calculate the final investment value and returns for a specific investment style.
 
-    The function only processes 1 ticker at a time, within a fixed period where ticker price data must 
-    exist. Every month, he will have an equal amount of cash available to be invested at the beginning.
+    The function only processes 1 ticker at a time, within a fixed period where ticker price data 
+    must exist. Investible cash is made available on the 1st day of each month.
+
+    dca_period: int
+        Number of periods of accumulation before DCAing (in months)
     """
-    # ticker = parse_tickers_n_cols(ticker)[0] # Not needed as we only expect a singular ticker
-    # To squeeze df into pd.Series to avoid needing to access df col in the purchase price loop
-    # Saved ~0.6ms per run for 53 month loop run
-    if not prices:
-        prices = data_df_constructor(
-            process_ticker_data(
-                ticker,
-                'adj_close',
-                start=start,
-                end=end
-            )
-        ).squeeze()
-    else:
-        prices = prices.loc[start:end].squeeze()
-    
-    # prices.columns = [ticker]
+    prices = parse_prices_for_inv_style(ticker, start, end, prices)
 
-    if (pd.to_datetime(start) - prices.index[0]).days < -4 or \
-       (pd.to_datetime(end) - prices.index[-1]).days > 4:
-        raise ValueError('start or end date is out of range of available price data')
-    
     # Create datetime index for every month in range, this is the date cash is available for investing
     cash_dates = pd.date_range(start, end, freq='MS')
 
-    # pd.Series accessor (.sum or .iloc etc.) returns a scalar
-    # For each month, peter_perfect will buy at the lowest price point of the remaining year
-    purchase_prices = pd.Series([prices.loc[cash_date:str(cash_date.year)].min() 
-                                 for cash_date in cash_dates])
+    match inv_style:
+        case 'ashley_action':
+            purchase_price = ashley_action(cash_dates, prices)
+        case 'celeste_combine':
+            purchase_price = celeste_combine(cash_dates, prices, dca_period)
+        case 'peter_perfect':
+            purchase_price = peter_perfect(cash_dates, prices)
+        case 'roise_rotten':
+            purchase_price = roise_rotten(cash_dates, prices)
+        case _:
+            raise ValueError('Invalid investment style')
     
     # Final investment value is MtM on the last day of the period
-    final_val = (prices.iloc[-1] / purchase_prices).sum() * monthly_inv
+    final_value = (prices.iloc[-1] / purchase_price).sum() * monthly_inv
 
     # Total invested amount over the period (with no discounting) is calculated
     total_invested = monthly_inv * len(cash_dates)
 
     # Create cashflow series with datetime index & cashflow values. Final value appended to the end
     cashflows = pd.Series(-monthly_inv, index=cash_dates)
-    cashflows.loc[prices.index[-1]] = final_val
+    cashflows.loc[prices.index[-1]] = final_value
 
     # Calculate the XIRR
     return_rate = xirr(cashflows=cashflows)
 
-    return total_invested, final_val, return_rate
+    return total_invested, final_value, return_rate
+
 
 def multi_period_missed_n_days(
         tickers: Iterable[str] | str,
@@ -606,88 +517,6 @@ def normalize_multi_data(
     data_df = data_df / base_val * 100
 
     return data_df
-
-
-def data_df_constructor(
-        ticker_dict: dict[str, dict[str, np.ndarray]],
-        truncate: bool = False
-    ) -> pd.DataFrame:
-    """
-    Takes in a ticker data dict in the specified form and transform it into a DataFrame
-
-    ticker_dict: dict[str, dict[str, np.ndarray]]
-        Dict of dicts, 1st level associate tickers to it's data, 2nd level associate col_name to data
-    truncate: bool
-        True:  Only keep dates where all tickers' have data
-        False: All tickers' full data will be kept
-    """
-    # Update data to a pd.DataFrame rather than a dict & rename them appropriately
-    data = {ticker: pd.DataFrame(data_dict).set_index('date') for ticker, data_dict in ticker_dict.items()}
-    # for ticker, df in data.items():
-    #     df.columns = ticker + '_' + df.columns
-
-    method = 'inner' if truncate else 'outer'
-
-    # When passing dict[str: df] to pd.concat(), keys will auto set to the dict keys str
-    merged_df = pd.concat(data, axis=1, join=method, sort=True)
-    # map will map the enclosed function to each of the output, in this case tuple of multiIndex col names
-    merged_df.columns = merged_df.columns.map(' '.join)
-
-    return merged_df
-
-
-def process_ticker_data(
-        tickers: Iterable[str] | str, 
-        cols: Iterable[str] | str, 
-        start: str | None = None, 
-        end: str | None = None,
-        autodate: bool = True
-    ) -> dict[str, dict[str, np.ndarray]]:
-    """
-    Pull the required ticker data & process it into a dict of Numpy Arrays for each column
-    which is then stored in a dict of tickers
-
-    tickers: Iterable[str] | str    
-        Ticker(s) which data is to be pulled
-    cols: Iterable[str] | str
-        Column name(s) of which data is to be pulled. Date + 1 additional col is necessarily pulled.
-    start/end: str
-        dates in ISO 8601 (YYYY-MM-DD) format to pull data from [start, end]. Default to earliest/latest
-    autodate: bool
-        convert datetime to numpy datetime64[ms] for matplotlib auto plot setting
-    """
-    # Get all available tickers from db if 'all' is passed, else ensure single ticker is iterable
-    tickers = parse_tickers_n_cols(tickers)
-    # make cols iterable if only a string is passed
-    cols = parse_tickers_n_cols(cols)
-    
-    # Ensure that date is within the data pulled and not duplicated
-    cols = ['date'] + [col for col in cols if col != 'date']
-
-    if len(cols) == 1:
-        raise ValueError("Can't pull only date data for a ticker, you must specify 1 more column")
-
-    tickers_data = {}
-    for ticker in tickers:
-        raw_data = pull_ticker_data(ticker, ', '.join(cols), start=start, end=end)
-        if not raw_data:
-            print(f'No data fetched for ticket {ticker}')
-            continue
-        # zip(*raw_data) converts list of tuples (of rows) into list of tuples (of columns)
-        raw_data = zip(*raw_data)         # Convert row data to col data
-        packed_data = zip(cols, raw_data) # Attach col name to each col data
-
-        packed_data = {col_name: np.array(col_data) for col_name, col_data in packed_data}
-        if autodate:
-            # specify Numpy datetime64 dtype, with millisecond precision [ms] rather than day [D]
-            # Reason being we need ms precision for the datetime64 object to be successfully converted
-            # to standard python datetime object later in setup_plot_elements section with .item() method 
-            packed_data['date'] = np.array(packed_data['date'], dtype='datetime64[ms]')
-        
-        # Get the data into {ticker: data_dict} format
-        tickers_data[ticker] = packed_data
-
-    return tickers_data
 
 
 #%%

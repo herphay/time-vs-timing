@@ -5,7 +5,7 @@ import matplotlib.dates as mdates
 # from collections.abc import Iterator
 
 from analysis import normalize_multi_data
-from analysis import process_ticker_data
+from helpers import process_ticker_data
 
 # Global data definition
 bins = 21 # Number of x-axis ticks to display for charts
