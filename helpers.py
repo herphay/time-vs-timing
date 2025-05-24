@@ -78,7 +78,7 @@ def parse_prices_for_inv_style(
         start: str,
         end: str,
         prices: pd.DataFrame | None = None,
-        cols: str = 'adj_close'
+        price_type: str = 'adj_close'
     ) -> pd.Series:
     """
     Help investment style funcs check and return a price pd.Series for a specific ticker
@@ -90,7 +90,7 @@ def parse_prices_for_inv_style(
         prices = data_df_constructor(
             process_ticker_data(
                 ticker,
-                cols=cols,
+                cols=price_type,
                 start=start,
                 end=end
             )

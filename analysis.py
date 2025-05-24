@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from datetime import datetime, timedelta
 from collections.abc import Iterable
+import time
 
 from helpers import xirr, parse_prices_for_inv_style
 from helpers import parse_tickers_n_cols, process_ticker_data, data_df_constructor
@@ -24,17 +25,171 @@ def main() -> None:
                        inv_style='celeste_combine', dca_period=3)
     # (53000, np.float64(68787.92414812635), np.float64(0.11795062533914513))
 
-    # inv_styles_returns('^SP500TR', 1000, '2020-11-01', '2025-03-31', inv_style='roise_rotton')
+    # inv_styles_returns('^SP500TR', 1000, '2020-11-01', '2025-03-31', inv_style='roise_rotten')
     # (53000, np.float64(62344.12557839035), np.float64(0.07297871365153119))
+
+    summarize_returns({'^SP500TR': 1}, '1900-01-01', '2029-01-01')
 
 
 def summarize_returns(
         ticker_alloc: dict[str, float],
-        initial_inv: float = 10000
+        period_start: str,
+        period_end: str,
+        period_len: str = '20y',
+        period_freq: str = 'MS',
+        monthly_inv: float = 1000,
+        price_type: str = 'adj_close',
+        dca_period: int = 3
     ) -> pd.DataFrame:
     """
     Summarize the difference in returns for different investment strats across different periods.
     """
+    setup_time = 0
+    style_time = 0
+    update_time = 0
+    s = time.perf_counter()
+
+    if 'y' in period_len:
+        period = pd.DateOffset(years=int(period_len.rstrip('y')))
+    elif 'm' in period_len:
+        period = pd.DateOffset(months=int(period_len.rstrip('m')))
+    elif 'd' in period_len:
+        period = pd.DateOffset(days=int(period_len.rstrip('d')))
+    else:
+        raise ValueError('Period must be an int followed by y, m, or d')
+
+    prices = data_df_constructor(
+        process_ticker_data(
+            ticker_alloc,
+            price_type,
+            period_start,
+            period_end
+        )
+    )
+
+    prices = prices.loc[~pd.isna(prices).any(axis=1)]
+    prices.columns = ticker_alloc # dict automatically yield keys
+
+    period_start = prices.index[0]
+    period_end   = prices.index[-1] - period
+
+    starts = pd.date_range(period_start, period_end, freq=period_freq)
+    ends = starts + period - pd.Timedelta(days=1)
+
+    total_alloc = sum(ticker_alloc.values())
+    if total_alloc > 1:
+        print(f'Warning: total asset allocation is at {total_alloc * 100 :.1f}%, assuming leverage')
+
+    styles = ('peter_perfect', 'ashley_action', 'celeste_combine', 'roise_rotten')
+    metrics = ('Final Value (k)', 'Total Gains', 'XIRR')
+    cols = pd.MultiIndex.from_product((styles, metrics))
+
+    results = pd.DataFrame(np.nan, index=ends, columns=cols)
+
+    e = time.perf_counter()
+    setup_time = e - s
+    count = 0
+
+    for style in styles:
+        ss = time.perf_counter()
+
+        for start, end in zip(starts, ends):
+            for ticker in ticker_alloc:
+                s = time.perf_counter()
+
+                total, final_value, returns = inv_styles_returns(
+                    ticker=ticker,
+                    monthly_inv=monthly_inv * ticker_alloc[ticker],
+                    start=start,
+                    end=end,
+                    prices=prices[ticker],
+                    inv_style=style,
+                    dca_period=dca_period
+                )
+
+                e = time.perf_counter()
+                style_time += e - s
+                s = time.perf_counter()
+
+                results.loc[end, (style, 'Final Value (k)')] = final_value / 1000
+                results.loc[end, (style, 'Total Gains')] = final_value / total
+                results.loc[end, (style, 'XIRR')] = returns
+
+                e = time.perf_counter()
+                update_time += e - s
+                count += 1
+
+        se = time.perf_counter()
+        print(f'Time to compute all {style} periods:', se - ss)
+    print('Setup time:', setup_time)
+    print('Total styles computation time:', style_time)
+    print('Total value setting time:', update_time)
+    print('Total investment style-period calculated:', count)
+
+    print(f'\nTotal invested for each period ({period_len}): ${total / 1000 :.0f}k')
+    
+    return results
+
+
+def inv_styles_returns(
+        ticker: str,
+        monthly_inv: float,
+        start: str,
+        end: str,
+        prices: pd.DataFrame | None = None,
+        inv_style: str = 'ashley_action',
+        dca_period: int = 3,
+        price_type: str = 'adj_close'
+    ) -> tuple[float, float, float]:
+    """
+    Calculate the final investment value and returns for a specific investment style.
+
+    The function only processes 1 ticker at a time, within a fixed period where ticker price data 
+    must exist. Investible cash is made available on the 1st day of each month.
+
+    dca_period: int
+        Number of periods of accumulation before DCAing (in months)
+    """
+    prices = parse_prices_for_inv_style(ticker, start, end, prices, price_type)
+
+    # Create datetime index for every month in range, this is the date cash is available for investing
+    cash_dates = pd.date_range(start, end, freq='MS')
+
+    match inv_style:
+        case 'ashley_action':
+            purchase_price = ashley_action(cash_dates, prices)
+        case 'celeste_combine':
+            purchase_price = celeste_combine(cash_dates, prices, dca_period)
+        case 'peter_perfect':
+            purchase_price = peter_perfect(cash_dates, prices)
+        case 'roise_rotten':
+            purchase_price = roise_rotten(cash_dates, prices)
+        case _:
+            raise ValueError('Invalid investment style')
+    
+    # Final investment value is MtM on the last day of the period
+    final_value = (prices.iloc[-1] / purchase_price).sum() * monthly_inv
+
+    # Total invested amount over the period (with no discounting) is calculated
+    total_invested = monthly_inv * len(cash_dates)
+
+    # Create cashflow series with datetime index & cashflow values. Final value appended to the end
+    cashflows = pd.Series(-monthly_inv, index=cash_dates)
+    cashflows.loc[prices.index[-1]] = final_value
+
+    # Calculate the XIRR
+    if isinstance(start, pd.Timestamp) and isinstance(end, pd.Timestamp):
+        inv_yr = 365.25 / (end - start).days
+    else:
+        inv_yr = 365.25 / (pd.to_datetime(end) - pd.to_datetime(start)).days
+    rate_guess = ((final_value / total_invested) ** inv_yr - 1) * 1.8
+    # if final_value / total_invested > 2:
+    #     rate_guess = 0.1
+    # else:
+    #     rate_guess = 0.02
+    return_rate = xirr(cashflows=cashflows, rate_guess=rate_guess)
+
+    return total_invested, final_value, return_rate
 
 
 def ashley_action(
@@ -92,57 +247,6 @@ def peter_perfect(
     market timer. He always buys at the lowest point in the remaining year.
     """
     return pd.Series([prices[cdate:str(cdate.year)].min() for cdate in cash_dates])
-
-
-def inv_styles_returns(
-        ticker: str,
-        monthly_inv: float,
-        start: str,
-        end: str,
-        prices: pd.DataFrame | None = None,
-        inv_style: str = 'ashley_action',
-        dca_period: int = 3
-    ) -> tuple[float, float, float]:
-    """
-    Calculate the final investment value and returns for a specific investment style.
-
-    The function only processes 1 ticker at a time, within a fixed period where ticker price data 
-    must exist. Investible cash is made available on the 1st day of each month.
-
-    dca_period: int
-        Number of periods of accumulation before DCAing (in months)
-    """
-    prices = parse_prices_for_inv_style(ticker, start, end, prices)
-
-    # Create datetime index for every month in range, this is the date cash is available for investing
-    cash_dates = pd.date_range(start, end, freq='MS')
-
-    match inv_style:
-        case 'ashley_action':
-            purchase_price = ashley_action(cash_dates, prices)
-        case 'celeste_combine':
-            purchase_price = celeste_combine(cash_dates, prices, dca_period)
-        case 'peter_perfect':
-            purchase_price = peter_perfect(cash_dates, prices)
-        case 'roise_rotten':
-            purchase_price = roise_rotten(cash_dates, prices)
-        case _:
-            raise ValueError('Invalid investment style')
-    
-    # Final investment value is MtM on the last day of the period
-    final_value = (prices.iloc[-1] / purchase_price).sum() * monthly_inv
-
-    # Total invested amount over the period (with no discounting) is calculated
-    total_invested = monthly_inv * len(cash_dates)
-
-    # Create cashflow series with datetime index & cashflow values. Final value appended to the end
-    cashflows = pd.Series(-monthly_inv, index=cash_dates)
-    cashflows.loc[prices.index[-1]] = final_value
-
-    # Calculate the XIRR
-    return_rate = xirr(cashflows=cashflows)
-
-    return total_invested, final_value, return_rate
 
 
 def multi_period_missed_n_days(
