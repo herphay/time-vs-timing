@@ -235,7 +235,12 @@ def roise_rotten(
     Calculates the purchase price of each month's invested amount for 'Roise Rotton', who has the worst 
     luck or most imperfect market timer. She always buys at the highest point in the remaining year.
     """
-    return pd.Series([prices[cdate:str(cdate.year)].max() for cdate in cash_dates])
+    year_group = prices.groupby(prices.index.year, group_keys=False)
+    max_price_til_eoy = year_group.apply(date_to_eoy_search, search_for='max')
+    max_price_til_eoy: pd.Series
+    return pd.Series(max_price_til_eoy.iloc[max_price_til_eoy.index.get_indexer(cash_dates, 
+                                                                                method='bfill')])
+    # return pd.Series([prices[cdate:str(cdate.year)].max() for cdate in cash_dates])
 
 
 def peter_perfect(
@@ -246,8 +251,24 @@ def peter_perfect(
     Calculates the purchase price of each month's invested amount for 'Peter Perfect', who is a perfect
     market timer. He always buys at the lowest point in the remaining year.
     """
-    return pd.Series([prices[cdate:str(cdate.year)].min() for cdate in cash_dates])
+    year_groups = prices.groupby(prices.index.year, group_keys=False)
+    min_prices_til_eoy = year_groups.apply(date_to_eoy_search, search_for='min')
+    min_prices_til_eoy: pd.Series
+    
+    return pd.Series(min_prices_til_eoy.iloc[min_prices_til_eoy.index.get_indexer(cash_dates, 
+                                                                                  method='bfill')])
+    # return pd.Series([prices[cdate:str(cdate.year)].min() for cdate in cash_dates])
 
+
+def date_to_eoy_search(
+        years_price: pd.Series,
+        search_for: str = 'max'
+    ) -> pd.Series:
+    if search_for == 'max':
+        return years_price.iloc[::-1].cummax().iloc[::-1]
+    else:
+        return years_price.iloc[::-1].cummin().iloc[::-1]
+        
 
 def multi_period_missed_n_days(
         tickers: Iterable[str] | str,
