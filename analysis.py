@@ -12,17 +12,19 @@ def main() -> None:
     # normalize_multi_data(['VT', '^GSPC'], 'adj_close', '1927-12-30')
     # multi_period_missed_n_days('^SP500TR', [(10,0), (5,5)], period_len='20y', period_start='1987-01-04')
 
-    # peter_perfect('^SP500TR', 1000, '2020-11-01', '2025-03-31')
+    # inv_styles_returns('^SP500TR', 1000, '2020-11-01', '2025-03-31', inv_style='peter_perfect')
     # (53000, np.float64(73180.20001085883), np.float64(0.14656691031117552))
 
-    # celeste_combine('^SP500TR', 1000, 1, '2020-11-01', '2025-03-31')
-    # ashley_action('^SP500TR', 1000, '2020-11-01', '2025-03-31')
+    # inv_styles_returns('^SP500TR', 1000, '2020-11-01', '2025-03-31', 
+    #                    inv_style='celeste_combine', dca_period=1)
+    # inv_styles_returns('^SP500TR', 1000, '2020-11-01', '2025-03-31', inv_style='ashley_action')
     # (53000, np.float64(69369.89797766194), np.float64(0.12183098321330998))
 
-    celeste_combine('^SP500TR', 1000, 3, '2020-11-01', '2025-03-31')
+    inv_styles_returns('^SP500TR', 1000, '2020-11-01', '2025-03-31', 
+                       inv_style='celeste_combine', dca_period=3)
     # (53000, np.float64(68787.92414812635), np.float64(0.11795062533914513))
 
-    # roise_rotton('^SP500TR', 1000, '2020-11-01', '2025-03-31')
+    # inv_styles_returns('^SP500TR', 1000, '2020-11-01', '2025-03-31', inv_style='roise_rotton')
     # (53000, np.float64(62344.12557839035), np.float64(0.07297871365153119))
 
 
@@ -36,156 +38,60 @@ def summarize_returns(
 
 
 def ashley_action(
-        ticker: str,
-        monthly_inv: float,
-        start: str,
-        end: str,
-        prices: pd.DataFrame | None = None
-    ) -> tuple[float, float, float]:
+        cash_dates: pd.DatetimeIndex,
+        prices: pd.DataFrame
+    ) -> pd.Series:
     """
-    Calculates the final investment value and annualized returns of 'Ashley Action', who invests her
-    monthly savings the next business day after she gets it.
-
-    The function only processes 1 ticker at a time, within a fixed period where ticker price data must 
-    exist. Every month, she will have an equal amount of cash available to be invested at the beginning.
+    Calculates the purchase price of each month's invested amount for 'Ashley Action', who invests 
+    her monthly savings the next business day after she gets it.
     """
-    prices = parse_prices_for_inv_style(ticker, start, end, prices)
-    
-    cash_dates = pd.date_range(start, end, freq='MS')
-
-    purchase_prices = pd.Series([prices.loc[cdate:cdate + pd.Timedelta(days=4)].iloc[0] 
-                                 for cdate in cash_dates])
-    
-    final_val = (prices.iloc[-1] / purchase_prices).sum() * monthly_inv
-
-    total_invested = monthly_inv * len(cash_dates)
-
-    cashflows = pd.Series(-monthly_inv, index=cash_dates)
-    cashflows.loc[prices.index[-1]] = final_val
-
-    return_rate = xirr(cashflows=cashflows)
-
-    return total_invested, final_val, return_rate
+    return pd.Series(prices.iloc[prices.index.get_indexer(cash_dates, method='bfill')])
 
 
 def celeste_combine(
-        ticker: str,
-        monthly_inv: float,
-        inv_freq: int,
-        start: str,
-        end: str,
-        prices: pd.DataFrame | None = None
-    ) -> tuple[float, float, float]:
+        cash_dates: pd.DatetimeIndex,
+        prices: pd.DataFrame,
+        dca_period: int
+    ) -> pd.Series:
     """
-    Calculates the final investment value and annualized returns of 'Celeste Combine', who combines 
-    her monthly savings until the end of each defined DCA period before investing it.
-
-    The function only processes 1 ticker at a time, within a fixed period where ticker price data must 
-    exist. Every month, she will have an equal amount of cash available to be invested at the beginning.
+    Calculates the purchase price of each month's invested amount for 'Celeste Combine', who 
+    combines her monthly savings until the end of each defined DCA period before investing it.
 
     inv_freq: int
         Number of periods of accumulation
     """
-    prices = parse_prices_for_inv_style(ticker, start, end, prices)
-    
-    cash_dates = pd.date_range(start, end, freq='MS')
-    if (remiainder := len(cash_dates) % inv_freq) != 0:
-        purchase_dates = cash_dates[inv_freq - 1:-1:inv_freq]
-    else:
-        purchase_dates = cash_dates[inv_freq - 1::inv_freq]
+    # Returns numpy array of ilocs for the next closest date (due to backfill)
+    potential_buy_dates = prices.index.get_indexer(cash_dates, method='bfill')
 
-    purchase_prices = pd.Series([prices.loc[buy_date:buy_date + pd.Timedelta(days=4)].iloc[0] 
-                                 for buy_date in purchase_dates])
-    
-    final_val = (prices.iloc[-1] / purchase_prices).sum() * monthly_inv * inv_freq
+    num_dates = len(cash_dates) 
+    # // is floor division (divide then round down), get the block number for the dates, 1 index
+    dca_block = np.arange(num_dates) // dca_period + 1 
+    # calc the block's last element's index (the DCA date) as 0 index, and limit it to the max idx
+    dca_date_iloc = np.minimum(dca_block * dca_period - 1, num_dates - 1)
 
-    if remiainder != 0:
-        final_val += (prices.iloc[-1] / 
-                     prices.loc[cash_dates[-1]:cash_dates[-1] + pd.Timedelta(days=4)].iloc[0]).sum() * \
-                     monthly_inv * remiainder
-    
-    total_invested = monthly_inv * len(cash_dates)
-
-    cashflows = pd.Series(-monthly_inv, index=cash_dates)
-    cashflows.loc[prices.index[-1]] = final_val
-
-    return_rate = xirr(cashflows=cashflows)
-
-    return total_invested, final_val, return_rate
+    return prices.iloc[potential_buy_dates[dca_date_iloc]]
 
 
-
-def roise_rotton(
-        ticker: str,
-        monthly_inv: float,
-        start: str,
-        end: str,
-        prices: pd.DataFrame | None = None
-    ) -> tuple[float, float, float]:
+def roise_rotten(
+        cash_dates: pd.DatetimeIndex,
+        prices: pd.DataFrame
+    ) -> pd.Series:
     """
-    Calculates the final investment value and annualized returns of 'Roise Rotton', who has the worst 
+    Calculates the purchase price of each month's invested amount for 'Roise Rotton', who has the worst 
     luck or most imperfect market timer. She always buys at the highest point in the remaining year.
-
-    The function only processes 1 ticker at a time, within a fixed period where ticker price data must 
-    exist. Every month, she will have an equal amount of cash available to be invested at the beginning.
     """
-    prices = parse_prices_for_inv_style(ticker, start, end, prices)
-    
-    cash_dates = pd.date_range(start, end, freq='MS')
-
-    purchase_prices = pd.Series([prices.loc[cash_date:str(cash_date.year)].max() 
-                                 for cash_date in cash_dates])
-    
-    final_val = (prices.iloc[-1] / purchase_prices).sum() * monthly_inv
-
-    total_invested = monthly_inv * len(cash_dates)
-
-    cashflows = pd.Series(-monthly_inv, index=cash_dates)
-    cashflows.loc[prices.index[-1]] = final_val
-
-    return_rate = xirr(cashflows=cashflows)
-
-    return total_invested, final_val, return_rate
+    return pd.Series([prices[cdate:str(cdate.year)].max() for cdate in cash_dates])
 
 
 def peter_perfect(
-        ticker: str,
-        monthly_inv: float,
-        start: str,
-        end: str,
-        prices: pd.DataFrame | None = None
-    ) -> tuple[float, float, float]:
+        cash_dates: pd.DatetimeIndex,
+        prices: pd.DataFrame
+    ) -> pd.Series:
     """
-    Calculates the final investment value and annualized returns of 'Peter Perfect', who is a perfect
+    Calculates the purchase price of each month's invested amount for 'Peter Perfect', who is a perfect
     market timer. He always buys at the lowest point in the remaining year.
-
-    The function only processes 1 ticker at a time, within a fixed period where ticker price data must 
-    exist. Every month, he will have an equal amount of cash available to be invested at the beginning.
     """
-    prices = parse_prices_for_inv_style(ticker, start, end, prices)
-    
-    # Create datetime index for every month in range, this is the date cash is available for investing
-    cash_dates = pd.date_range(start, end, freq='MS')
-
-    # pd.Series accessor (.sum or .iloc etc.) returns a scalar
-    # For each month, peter_perfect will buy at the lowest price point of the remaining year
-    purchase_prices = pd.Series([prices.loc[cash_date:str(cash_date.year)].min() 
-                                 for cash_date in cash_dates])
-    
-    # Final investment value is MtM on the last day of the period
-    final_val = (prices.iloc[-1] / purchase_prices).sum() * monthly_inv
-
-    # Total invested amount over the period (with no discounting) is calculated
-    total_invested = monthly_inv * len(cash_dates)
-
-    # Create cashflow series with datetime index & cashflow values. Final value appended to the end
-    cashflows = pd.Series(-monthly_inv, index=cash_dates)
-    cashflows.loc[prices.index[-1]] = final_val
-
-    # Calculate the XIRR
-    return_rate = xirr(cashflows=cashflows)
-
-    return total_invested, final_val, return_rate
+    return pd.Series([prices[cdate:str(cdate.year)].min() for cdate in cash_dates])
 
 
 def inv_styles_returns(
@@ -198,7 +104,13 @@ def inv_styles_returns(
         dca_period: int = 3
     ) -> tuple[float, float, float]:
     """
-    Calculate the returns for a specific investment style
+    Calculate the final investment value and returns for a specific investment style.
+
+    The function only processes 1 ticker at a time, within a fixed period where ticker price data 
+    must exist. Investible cash is made available on the 1st day of each month.
+
+    dca_period: int
+        Number of periods of accumulation before DCAing (in months)
     """
     prices = parse_prices_for_inv_style(ticker, start, end, prices)
 
@@ -213,7 +125,7 @@ def inv_styles_returns(
         case 'peter_perfect':
             purchase_price = peter_perfect(cash_dates, prices)
         case 'roise_rotten':
-            purchase_price = roise_rotton(cash_dates, prices)
+            purchase_price = roise_rotten(cash_dates, prices)
         case _:
             raise ValueError('Invalid investment style')
     
