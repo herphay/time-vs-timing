@@ -235,9 +235,16 @@ def roise_rotten(
     Calculates the purchase price of each month's invested amount for 'Roise Rotton', who has the worst 
     luck or most imperfect market timer. She always buys at the highest point in the remaining year.
     """
+    # Group prices by the year. group_kays=False ensures that the key used to group the data is not
+    # Added to the resulting group object as another level of index
     year_group = prices.groupby(prices.index.year, group_keys=False)
+    # Apply the min/max search func for each year period
+    # The results are concatenated together into the full original series but the value associated
+    # with each date being the min/max value that is achievable form that date til EOY
     max_price_til_eoy = year_group.apply(date_to_eoy_search, search_for='max')
     max_price_til_eoy: pd.Series
+
+    # Then simply get the int index associated with each cash avail date and get said min/max val.
     return pd.Series(max_price_til_eoy.iloc[max_price_til_eoy.index.get_indexer(cash_dates, 
                                                                                 method='bfill')])
     # return pd.Series([prices[cdate:str(cdate.year)].max() for cdate in cash_dates])
@@ -264,7 +271,21 @@ def date_to_eoy_search(
         years_price: pd.Series,
         search_for: str = 'max'
     ) -> pd.Series:
+    """
+    Given a series of prices (years_price) for a specific year (or any time period). Returns another
+    series that gives the min/max price from the specific day til the end of the given period.
+    """
+    # To search for max, else search for min
     if search_for == 'max':
+        # Given the sorted daily period prices, first reverse the list (So the series goes from end
+        # to the start).
+        # 
+        # Second, get the cumulative max of the series starting from the end to the start
+        # Crucially, this will provide a backwards view of the max price achievable from the last 
+        # day til a specific earlier day (or min price if searching for min)
+        # 
+        # Lastly, reverse the list back to normal order and we have the min/max price achievable
+        # within the specific period from the specific day
         return years_price.iloc[::-1].cummax().iloc[::-1]
     else:
         return years_price.iloc[::-1].cummin().iloc[::-1]
