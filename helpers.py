@@ -37,6 +37,7 @@ def xirr(
 
     # Get the coefficients for the algebriac XNPV function
     # Not needed, because the cashflows are the coefficients
+    cashflows = np.array(cashflows)
 
     # Get the powers for the derivative of the XNPV function
     deri_powers = powers - 1
@@ -47,9 +48,9 @@ def xirr(
     # call scipy.optimize.newton and pass the XNPV func along with its 1st derivative
     # Here, solve for x where x = 1 / (1 + xirr)
     inv_r = newton(
-                func=lambda x: sum([c * x ** p for c, p in zip (cashflows, powers)]),
+                func=lambda x: np.sum(cashflows * x ** powers),
                 x0 = 1 / (1 + rate_guess),
-                fprime=lambda x: sum([c * x ** p for c, p in zip(deri_coeff, deri_powers)])
+                fprime=lambda x: np.sum(deri_coeff * x ** deri_powers)
             )
 
     return 1 / inv_r - 1
