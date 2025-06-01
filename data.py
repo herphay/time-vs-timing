@@ -14,7 +14,7 @@ class TickerInfo:
     Remarks:     str
 
 def main() -> None:
-    ...
+    daily_scrapper()
 
 
 def daily_scrapper() -> None:
