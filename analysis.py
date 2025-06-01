@@ -29,6 +29,7 @@ def main() -> None:
     # (53000, np.float64(62344.12557839035), np.float64(0.07297871365153119))
 
     summarize_returns({'^SP500TR': 1}, '1900-01-01', '2029-01-01')
+    summarize_returns({'^SP500TR': 0.9, 'TLT': 0.1}, '1900', '2029').xs('XIRR', 1, 1).describe()
 
 
 def summarize_returns(
@@ -143,9 +144,13 @@ def inv_styles_returns(
     """
     Calculate the final investment value and returns for a specific investment style.
 
-    The function only processes 1 ticker at a time, within a fixed period where ticker price data 
-    must exist. Investible cash is made available on the 1st day of each month.
+    The function can process investment in 1 specific ticker, or a set of tickers with a fixed 
+    % allocation, within a fixed period where ticker price data must exist. Investible cash is made 
+    available on the 1st day of each month.
 
+    tickers: str | dict[str, float]
+        str for a single ticker, else define multiple tickers and their respective portfolio % alloc
+        with a dict
     dca_period: int
         Number of periods of accumulation before DCAing (in months)
     """

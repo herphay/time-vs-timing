@@ -82,7 +82,8 @@ def parse_prices_for_inv_style(
         price_type: str = 'adj_close'
     ) -> pd.Series | pd.DataFrame:
     """
-    Help investment style funcs check and return a price pd.Series for a specific ticker
+    Help investment style funcs check and return a price pd.Series for a specific ticker. If 
+    multiple tickers are passed, a price df is returned instead
     """
     # ticker = parse_tickers_n_cols(ticker)[0] # Not needed as we only expect a singular ticker
     # To squeeze df into pd.Series to avoid needing to access df col in the purchase price loop
