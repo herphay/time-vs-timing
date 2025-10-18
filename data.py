@@ -32,13 +32,16 @@ def ticker_scrapper(ticker: str) -> bool:
     Only data that has not yet been scrapped before (not in database) will be added.
     """
     today = datetime.today().strftime('%Y-%m-%d')
-    latest_date = pull_ticker_data(ticker, cols='MAX(date)')
-    latest_date = (datetime.strptime(latest_date[0][0], '%Y-%m-%d') + 
-                   timedelta(days=1)).strftime('%Y-%m-%d') if \
-                  len(latest_date) == 1 else None
-    if latest_date >= today:
-        print(f'{ticker} data has already been updated til {today}, no need to update')
-        return False
+    latest_date = pull_ticker_data(ticker, cols='MAX(date)') # returns [(None,)] if no ticker data
+
+    if latest_date[0][0] == None:
+        latest_date = None
+    else:
+        latest_date = (datetime.strptime(latest_date[0][0], '%Y-%m-%d') + 
+                    timedelta(days=1)).strftime('%Y-%m-%d')
+        if latest_date >= today:
+            print(f'{ticker} data has already been updated til {today}, no need to update')
+            return False
 
     new_data = get_ticker_history_yfin(ticker, start=latest_date)
     new_data = new_data.reset_index()

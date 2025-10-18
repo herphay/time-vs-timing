@@ -207,3 +207,56 @@ def get_index_list() -> list[TickerInfo]:
             Remarks='Gold Futures Contract'
         ),
     ]
+
+def get_mag7() -> list[TickerInfo]:
+    return [
+        TickerInfo(
+            ticker='GOOG',
+            Asset_Class='Equities',
+            Sub_Class='US Equities (Large Cap)',
+            Benchmark='S&P500 Index',
+            Remarks='MAG7, SP500'
+        ),
+        TickerInfo(
+            ticker='AMZN',
+            Asset_Class='Equities',
+            Sub_Class='US Equities (Large Cap)',
+            Benchmark='S&P500 Index',
+            Remarks='MAG7, SP500'
+        ),
+        TickerInfo(
+            ticker='AAPL',
+            Asset_Class='Equities',
+            Sub_Class='US Equities (Large Cap)',
+            Benchmark='S&P500 Index',
+            Remarks='MAG7, SP500'
+        ),
+        TickerInfo(
+            ticker='META',
+            Asset_Class='Equities',
+            Sub_Class='US Equities (Large Cap)',
+            Benchmark='S&P500 Index',
+            Remarks='MAG7, SP500'
+        ),
+        TickerInfo(
+            ticker='MSFT',
+            Asset_Class='Equities',
+            Sub_Class='US Equities (Large Cap)',
+            Benchmark='S&P500 Index',
+            Remarks='MAG7, SP500'
+        ),
+        TickerInfo(
+            ticker='NVDA',
+            Asset_Class='Equities',
+            Sub_Class='US Equities (Large Cap)',
+            Benchmark='S&P500 Index',
+            Remarks='MAG7, SP500'
+        ),
+        TickerInfo(
+            ticker='TSLA',
+            Asset_Class='Equities',
+            Sub_Class='US Equities (Large Cap)',
+            Benchmark='S&P500 Index',
+            Remarks='MAG7, SP500'
+        ),
+    ]
