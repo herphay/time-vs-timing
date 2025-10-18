@@ -80,9 +80,10 @@ def parse_prices_for_inv_style(
         end: str,
         prices: pd.DataFrame | None = None,
         price_type: str = 'adj_close'
-    ) -> pd.Series:
+    ) -> pd.Series | pd.DataFrame:
     """
-    Help investment style funcs check and return a price pd.Series for a specific ticker
+    Help investment style funcs check and return a price pd.Series for a specific ticker. If 
+    multiple tickers are passed, a price df is returned instead
     """
     # ticker = parse_tickers_n_cols(ticker)[0] # Not needed as we only expect a singular ticker
     # To squeeze df into pd.Series to avoid needing to access df col in the purchase price loop
@@ -103,7 +104,11 @@ def parse_prices_for_inv_style(
        (pd.to_datetime(end) - prices.index[-1]).days > 4:
         raise ValueError('start or end date is out of range of available price data')
     
-    prices: pd.Series
+    prices: pd.Series | pd.DataFrame
+
+    if isinstance(prices, pd.DataFrame):
+        prices.columns = ticker
+    
     return prices
 
 

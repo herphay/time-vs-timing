@@ -29,6 +29,7 @@ def main() -> None:
     # (53000, np.float64(62344.12557839035), np.float64(0.07297871365153119))
 
     summarize_returns({'^SP500TR': 1}, '1900-01-01', '2029-01-01')
+    summarize_returns({'^SP500TR': 0.9, 'TLT': 0.1}, '1900', '2029').xs('XIRR', 1, 1).describe()
 
 
 def summarize_returns(
@@ -94,30 +95,29 @@ def summarize_returns(
         ss = time.perf_counter()
 
         for start, end in zip(starts, ends):
-            for ticker in ticker_alloc:
-                s = time.perf_counter()
+            s = time.perf_counter()
 
-                total, final_value, returns = inv_styles_returns(
-                    ticker=ticker,
-                    monthly_inv=monthly_inv * ticker_alloc[ticker],
-                    start=start,
-                    end=end,
-                    prices=prices[ticker],
-                    inv_style=style,
-                    dca_period=dca_period
-                )
+            total, final_value, returns = inv_styles_returns(
+                tickers=ticker_alloc,
+                monthly_inv=monthly_inv,
+                start=start,
+                end=end,
+                prices=prices,
+                inv_style=style,
+                dca_period=dca_period
+            )
 
-                e = time.perf_counter()
-                style_time += e - s
-                s = time.perf_counter()
+            e = time.perf_counter()
+            style_time += e - s
+            s = time.perf_counter()
 
-                results.loc[end, (style, 'Final Value (k)')] = final_value / 1000
-                results.loc[end, (style, 'Total Gains')] = final_value / total
-                results.loc[end, (style, 'XIRR')] = returns
+            results.loc[end, (style, 'Final Value (k)')] = final_value / 1000
+            results.loc[end, (style, 'Total Gains')] = final_value / total
+            results.loc[end, (style, 'XIRR')] = returns
 
-                e = time.perf_counter()
-                update_time += e - s
-                count += 1
+            e = time.perf_counter()
+            update_time += e - s
+            count += 1
 
         se = time.perf_counter()
         print(f'Time to compute all {style} periods:', se - ss)
@@ -132,7 +132,7 @@ def summarize_returns(
 
 
 def inv_styles_returns(
-        ticker: str,
+        tickers: str | dict[str, float],
         monthly_inv: float,
         start: str,
         end: str,
@@ -144,31 +144,47 @@ def inv_styles_returns(
     """
     Calculate the final investment value and returns for a specific investment style.
 
-    The function only processes 1 ticker at a time, within a fixed period where ticker price data 
-    must exist. Investible cash is made available on the 1st day of each month.
+    The function can process investment in 1 specific ticker, or a set of tickers with a fixed 
+    % allocation, within a fixed period where ticker price data must exist. Investible cash is made 
+    available on the 1st day of each month.
 
+    tickers: str | dict[str, float]
+        str for a single ticker, else define multiple tickers and their respective portfolio % alloc
+        with a dict
     dca_period: int
         Number of periods of accumulation before DCAing (in months)
     """
-    prices = parse_prices_for_inv_style(ticker, start, end, prices, price_type)
+    prices = parse_prices_for_inv_style(tickers, start, end, prices, price_type)
 
     # Create datetime index for every month in range, this is the date cash is available for investing
     cash_dates = pd.date_range(start, end, freq='MS')
 
-    match inv_style:
-        case 'ashley_action':
-            purchase_price = ashley_action(cash_dates, prices)
-        case 'celeste_combine':
-            purchase_price = celeste_combine(cash_dates, prices, dca_period)
-        case 'peter_perfect':
-            purchase_price = peter_perfect(cash_dates, prices)
-        case 'roise_rotten':
-            purchase_price = roise_rotten(cash_dates, prices)
-        case _:
-            raise ValueError('Invalid investment style')
+    def get_ticker_purchase_prices(cash_dates, prices, dca_period):
+        match inv_style:
+            case 'ashley_action':
+                purchase_price = ashley_action(cash_dates, prices)
+            case 'celeste_combine':
+                purchase_price = celeste_combine(cash_dates, prices, dca_period)
+            case 'peter_perfect':
+                purchase_price = peter_perfect(cash_dates, prices)
+            case 'roise_rotten':
+                purchase_price = roise_rotten(cash_dates, prices)
+            case _:
+                raise ValueError('Invalid investment style')
+        return purchase_price
     
-    # Final investment value is MtM on the last day of the period
-    final_value = (prices.iloc[-1] / purchase_price).sum() * monthly_inv
+    if isinstance(prices, pd.Series):
+        # if single ticker
+        purchase_prices = get_ticker_purchase_prices(cash_dates, prices, dca_period)
+        # Final investment value is MtM on the last day of the period
+        final_value = (prices.iloc[-1] / purchase_prices).sum() * monthly_inv
+    else:
+        # if multiple tickers are processed
+        final_value = 0
+        for ticker in tickers:
+            purchase_prices = get_ticker_purchase_prices(cash_dates, prices[ticker], dca_period)
+            final_value += (prices[ticker].iloc[-1] / purchase_prices).sum() * monthly_inv \
+                           * tickers[ticker]
 
     # Total invested amount over the period (with no discounting) is calculated
     total_invested = monthly_inv * len(cash_dates)
