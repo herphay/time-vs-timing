@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 from scipy.optimize import newton
 from collections.abc import Iterable
+from typing import Literal
 
 from data import get_all_tickers, pull_ticker_data
 
@@ -114,7 +115,8 @@ def parse_prices_for_inv_style(
 
 def data_df_constructor(
         ticker_dict: dict[str, dict[str, np.ndarray]],
-        truncate: bool = False
+        truncate: bool = False,
+        col_naming_convention: Literal['combine', 'ticker'] = 'combine'
     ) -> pd.DataFrame:
     """
     Takes in a ticker data dict in the specified form and transform it into a DataFrame
@@ -134,8 +136,12 @@ def data_df_constructor(
 
     # When passing dict[str: df] to pd.concat(), keys will auto set to the dict keys str
     merged_df = pd.concat(data, axis=1, join=method, sort=True)
-    # map will map the enclosed function to each of the output, in this case tuple of multiIndex col names
-    merged_df.columns = merged_df.columns.map(' '.join)
+
+    if col_naming_convention == 'combine':
+        # map will map the enclosed function to each of the output, in this case tuple of multiIndex col names
+        merged_df.columns = merged_df.columns.map(' '.join)
+    else:
+        merged_df.columns = ticker_dict.keys()
 
     return merged_df
 
@@ -192,3 +198,24 @@ def process_ticker_data(
         tickers_data[ticker] = packed_data
 
     return tickers_data
+
+########################### this is for new monte carlo simulation data ############################
+
+def ticker_data2df(
+        tickers: Iterable[str],
+        col: str = 'adj_close',
+        start: str | None = None,
+        end: str | None = None,
+        truncate: bool = True,
+        col_naming_convention: str = 'ticker'
+    ) -> pd.DataFrame:
+    return data_df_constructor(
+        process_ticker_data(
+            tickers=tickers,
+            cols=col,
+            start=start,
+            end=end
+        ),
+        truncate=truncate,
+        col_naming_convention=col_naming_convention
+    )
