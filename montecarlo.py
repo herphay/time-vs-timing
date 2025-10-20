@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 
 from collections.abc import Iterable
 from datetime import datetime, timedelta
+from typing import Literal
 
 from helpers import ticker_data2df
 
@@ -21,7 +22,7 @@ def get_ticker_stats(
     return mean_return.to_numpy(), covariance_matrix.to_numpy(), data
 
 
-def montecarlo_sim(
+def montecarlo_sim_qpy(
         meanReturn: pd.Series,
         covarianceMatrix: pd.DataFrame,
         stockWeights: np.ndarray,
@@ -68,3 +69,62 @@ def montecarlo_sim(
     print(portfolio_sims.shape)
     plt.plot(portfolio_sims)
     plt.show()
+
+
+def montecarlo_sim(
+        meanReturn: np.ndarray,
+        covarianceMatrix: np.ndarray,
+        weights: np.ndarray,
+        ndays: int = 100,
+        nsims: int = 100,
+        rebalance: Literal['daily', 'none'] = 'none',
+        plot: bool = True,
+        get_returns: bool = False
+    ) -> np.ndarray:
+    """
+    Montecarlo simulations of a portfolio of securities
+
+    meanReturn:
+        (1,k) array of the mean return of each security
+    covarianceMatrix:
+        (k,k) array of the covariance between each security
+    weights:
+        (1,k) array of initial portfolio weight of each security
+    ndays:
+        number of days to simulate the portfolio for
+    nsims:
+        number of simulation runs
+    rebalance:
+        How is the portfolio rebalance?
+        daily = daily rebalance at EOD to maintain initial portfolio weight throughout
+        none = no rebalance
+    """
+    num_securities = len(weights)
+    # np.tile is slower than np.full for this purpose -> tested for 100*4 full ~0.8s, tile ~1.4s
+    meanReturn = np.full(shape=(ndays, num_securities), fill_value=meanReturn).T
+    portfolio_performance = np.zeros(shape=(ndays, nsims))
+
+    rng = np.random.default_rng()
+
+    for i in range(nsims):
+        # Generate independent normally distributed samples
+        Z = rng.normal(size=(num_securities, ndays))
+        L = np.linalg.cholesky(covarianceMatrix)
+        daily_returns = meanReturn + (L @ Z)
+
+        if rebalance == 'daily':
+            portfolio_value = np.cumprod(1 + weights @ daily_returns)
+        elif rebalance == 'none':
+            portfolio_value = weights @ np.cumprod(1 + daily_returns, axis=1)
+        
+        portfolio_performance[:, i] = portfolio_value
+    
+    if plot:
+        plt.plot(portfolio_performance)
+        plt.ylabel('Portfolio Value')
+        plt.xlabel('days')
+        plt.title(f'Montecarlo Portfolio sim: {nsims} sims over {ndays} days')
+        plt.show()
+
+    if get_returns:
+        return portfolio_performance
