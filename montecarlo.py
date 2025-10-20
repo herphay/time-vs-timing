@@ -79,7 +79,9 @@ def montecarlo_sim(
         nsims: int = 100,
         rebalance: Literal['daily', 'none'] = 'none',
         plot: bool = True,
-        get_returns: bool = False
+        get_returns: bool = False,
+        method: Literal['loop', 'oneshot'] = 'loop',
+        seed: int | None = None
     ) -> np.ndarray:
     """
     Montecarlo simulations of a portfolio of securities
@@ -100,24 +102,48 @@ def montecarlo_sim(
         none = no rebalance
     """
     num_securities = len(weights)
-    # np.tile is slower than np.full for this purpose -> tested for 100*4 full ~0.8s, tile ~1.4s
-    meanReturn = np.full(shape=(ndays, num_securities), fill_value=meanReturn).T
-    portfolio_performance = np.zeros(shape=(ndays, nsims))
+    weights = weights.reshape(1, -1)
 
-    rng = np.random.default_rng()
+    rng = np.random.default_rng(seed=seed)
 
-    for i in range(nsims):
-        # Generate independent normally distributed samples
-        Z = rng.normal(size=(num_securities, ndays))
+    # Average run time ~0.95s
+    if method == 'loop':
+        portfolio_performance = np.zeros(shape=(ndays, nsims))
+        # np.tile is slower than np.full for this purpose -> tested for 100*4 full ~0.8s, tile ~1.4s
+        meanReturn = np.full(shape=(ndays, num_securities), fill_value=meanReturn).T
         L = np.linalg.cholesky(covarianceMatrix)
-        daily_returns = meanReturn + (L @ Z)
+
+        for i in range(nsims):
+            # Generate independent normally distributed samples
+            Z = rng.normal(size=(num_securities, ndays))
+            daily_returns = meanReturn + L @ Z
+
+            if rebalance == 'daily':
+                portfolio_value = np.cumprod(1 + weights @ daily_returns)
+            elif rebalance == 'none':
+                portfolio_value = weights @ np.cumprod(1 + daily_returns, axis=1)
+            
+            portfolio_performance[:, i] = portfolio_value
+    
+    # Average run time ~0.6s
+    elif method == 'oneshot':
+        meanReturn = np.full(shape=(nsims, ndays, num_securities), fill_value=meanReturn)
+        # Transposing only the meanReturn matrix between ndays/num_securities -> no change to nsims
+        meanReturn = np.transpose(meanReturn, (0, 2, 1))
+
+        L = np.linalg.cholesky(covarianceMatrix)
+        L = np.full(shape=(nsims, *L.shape), fill_value=L) # * unpacks the shape, 
+
+        Z = rng.normal(size=(nsims, num_securities, ndays))
+        daily_returns = meanReturn + L @ Z
 
         if rebalance == 'daily':
-            portfolio_value = np.cumprod(1 + weights @ daily_returns)
+            portfolio_performance = np.cumprod(1 + weights @ daily_returns, axis=2).\
+                                       squeeze(axis=1).T
         elif rebalance == 'none':
-            portfolio_value = weights @ np.cumprod(1 + daily_returns, axis=1)
-        
-        portfolio_performance[:, i] = portfolio_value
+            portfolio_performance = (weights @ np.cumprod(1 + daily_returns, axis=2)).\
+                                       squeeze(axis=1).T
+
     
     if plot:
         plt.plot(portfolio_performance)
