@@ -106,7 +106,7 @@ def montecarlo_sim(
 
     rng = np.random.default_rng(seed=seed)
 
-    # Average run time ~0.95s
+    # Average run time ~0.95s for 100 sims * 1000 runs | ~0.91s for 100_000 sims * 1 run
     if method == 'loop':
         portfolio_performance = np.zeros(shape=(ndays, nsims))
         # np.tile is slower than np.full for this purpose -> tested for 100*4 full ~0.8s, tile ~1.4s
@@ -125,7 +125,7 @@ def montecarlo_sim(
             
             portfolio_performance[:, i] = portfolio_value
     
-    # Average run time ~0.6s
+    # Average run time ~0.6s for 100 sims * 1000 runs | 0.79s for 100_000 sims * 1 run
     elif method == 'oneshot':
         meanReturn = np.full(shape=(nsims, ndays, num_securities), fill_value=meanReturn)
         # Transposing only the meanReturn matrix between ndays/num_securities -> no change to nsims
