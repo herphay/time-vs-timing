@@ -12,10 +12,21 @@ def get_ticker_stats(
         tickers: Iterable[str],
         start: str | None = None,
         end: str | None = None,
+        price_freq: Literal['D', 'M'] = 'D',
+        return_type: Literal['simple', 'log'] = 'simple',
     ) -> tuple[pd.Series, pd.DataFrame]:
     data = ticker_data2df(tickers=tickers, start=start, end=end)
+    if price_freq == 'D':
+        pass
+    elif price_freq == 'M':
+        data = data.groupby(pd.Grouper(freq='ME')).last()
 
-    returns = data.pct_change()
+    if return_type == 'simple':
+        returns = data.pct_change()
+    elif return_type == 'log':
+        returns = data.pct_change()
+        returns = np.log1p(returns)
+        
     mean_return = returns.mean()
     covariance_matrix = returns.cov()
 

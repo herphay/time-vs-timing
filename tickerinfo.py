@@ -99,6 +99,13 @@ def get_index_list() -> list[TickerInfo]:
             Benchmark='Russell 1000 Value',
             Remarks='ETF proxy, distributing'
         ),
+        TickerInfo(
+            ticker='VTI',
+            Asset_Class='Equities',
+            Sub_Class='US Equities (All Cap)',
+            Benchmark='CRSP US Total Market Index',
+            Remarks='Index, Price Return'
+        ),
         ########################
         ##### Fixed Income #####
         ########################
@@ -121,6 +128,13 @@ def get_index_list() -> list[TickerInfo]:
             Asset_Class='Fixed Income',
             Sub_Class='US Bonds (Treasuries 1-3yr)',
             Benchmark='ICE US Treasury 1-3 Year Bond Index',
+            Remarks='ETF proxy, distributing'
+        ),
+        TickerInfo(
+            ticker='IEI',
+            Asset_Class='Fixed Income',
+            Sub_Class='US Bonds (Treasuries 3-7yr)',
+            Benchmark='ICE US Treasury 3-7 Year Bond Index',
             Remarks='ETF proxy, distributing'
         ),
         TickerInfo(
@@ -205,6 +219,20 @@ def get_index_list() -> list[TickerInfo]:
             Sub_Class='Gold',
             Benchmark='Gold Futures',
             Remarks='Gold Futures Contract'
+        ),
+        TickerInfo(
+            ticker='GLD',
+            Asset_Class='Commodities',
+            Sub_Class='Gold',
+            Benchmark='Gold',
+            Remarks='ETF, physical gold'
+        ),
+        TickerInfo(
+            ticker='DBC',
+            Asset_Class='Commodities',
+            Sub_Class='Broad Basket Commodities',
+            Benchmark='DBIQ Optimum Yield Diversified Commodity Index Excess Return',
+            Remarks='Broad Commodities'
         ),
     ]
 
