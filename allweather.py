@@ -25,6 +25,7 @@ def all_weather_retail(
         return_type: Literal['log', 'simple'] = 'log',
         bounds: np.ndarray = np.array([1.5, 2.5]),
         plot_return_type: Literal['log', 'simple'] = 'simple',
+        realized_returns: np.ndarray | None = None,
         plot: bool = True
     ) -> None:
     """
@@ -63,9 +64,9 @@ def all_weather_retail(
 
 
     if plot:
-        # print(np.log1p(prices.pct_change()).to_numpy()[-len(sim_t):].shape)
-        realized = np.log1p(prices.pct_change()).to_numpy()[-len(sim_t):].cumsum(axis=0)
-        expectations = np.vstack([expectations, realized.T])
+        if isinstance(realized_returns, type(None)):
+            realized_returns = np.log1p(prices.pct_change()).to_numpy()[-len(sim_t):].cumsum(axis=0)
+        expectations = np.vstack([expectations, realized_returns.T])
         if return_type == 'log' and plot_return_type == 'simple':
             expectations = np.e ** expectations
 
@@ -73,9 +74,38 @@ def all_weather_retail(
         plt.title(f'Returns over')
         plt.show()
     
-    return expectations, realized.T, prices
+    return expectations, realized_returns.T, prices
 
 
+def get_portfolio_returns(
+        data_start: str | None = None,
+        data_end: str | None = None,
+        data_freq: Literal['D', 'M'] = 'D',
+        period: str = '5y',
+        components: list[str] = ['VTI', 'TLT', 'IEI', 'DBC', 'GLD'],
+        weights: np.ndarray = np.array([0.3, 0.4, 0.15, 0.075, 0.075]),
+        rebalance: Literal['No', 'Yearly'] = 'No',
+        return_type: Literal['log', 'simple'] = 'log',
+    ) -> np.ndarray:
+    _, _, prices = get_ticker_stats(components, price_freq=data_freq, return_type='log',
+                                       start=data_start, end=data_end)
+    
+    if rebalance == 'No':
+        component_returns = np.log1p(prices.pct_change().fillna(0)).cumsum() # component log returns
+        component_returns += np.log(weights) # component log returns now weighted by weights
+        print(component_returns)
+        # portfolio returns need to be summed in normal space rather than log space
+        portfolio_returns = np.log((np.e ** component_returns).sum(axis=1)).to_numpy()
+    elif rebalance == 'Yearly':
+        ...
+    
+    return portfolio_returns
+
+
+def plot_all_weather():
+    realized_returns = get_portfolio_returns(data_start='2020-11-13')
+    all_weather_retail(realized_returns=realized_returns)
+    return realized_returns
 
 
 if __name__ == '__main__':
