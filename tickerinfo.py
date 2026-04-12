@@ -288,3 +288,98 @@ def get_mag7() -> list[TickerInfo]:
             Remarks='MAG7, SP500'
         ),
     ]
+
+def get_jp_mid_financial() -> list[TickerInfo]:
+    return [
+        TickerInfo(
+            ticker='7389.T',
+            Asset_Class='Equities',
+            Sub_Class='Japan Equities',
+            Benchmark='TOPIX Banks Index',
+            Remarks='Japan regional banks'
+        ),
+        TickerInfo(
+            ticker='8331.T',
+            Asset_Class='Equities',
+            Sub_Class='Japan Equities',
+            Benchmark='TOPIX Banks Index',
+            Remarks='Japan regional banks'
+        ),
+        TickerInfo(
+            ticker='8337.T',
+            Asset_Class='Equities',
+            Sub_Class='Japan Equities',
+            Benchmark='TOPIX Banks Index',
+            Remarks='Japan regional banks'
+        ),
+        TickerInfo(
+            ticker='7327.T',
+            Asset_Class='Equities',
+            Sub_Class='Japan Equities',
+            Benchmark='TOPIX Banks Index',
+            Remarks='Japan regional banks'
+        ),
+        TickerInfo(
+            ticker='8771.T',
+            Asset_Class='Equities',
+            Sub_Class='Japan Equities',
+            Benchmark='TOPIX Banks Index',
+            Remarks='Japan regional banks'
+        ),
+        TickerInfo(
+            ticker='8334.T',
+            Asset_Class='Equities',
+            Sub_Class='Japan Equities',
+            Benchmark='TOPIX Banks Index',
+            Remarks='Japan regional banks'
+        ),
+        TickerInfo(
+            ticker='8368.T',
+            Asset_Class='Equities',
+            Sub_Class='Japan Equities',
+            Benchmark='TOPIX Banks Index',
+            Remarks='Japan regional banks'
+        ),
+        TickerInfo(
+            ticker='5844.T',
+            Asset_Class='Equities',
+            Sub_Class='Japan Equities',
+            Benchmark='TOPIX Banks Index',
+            Remarks='Japan regional banks'
+        ),
+        TickerInfo(
+            ticker='8522.T',
+            Asset_Class='Equities',
+            Sub_Class='Japan Equities',
+            Benchmark='TOPIX Banks Index',
+            Remarks='Japan regional banks'
+        ),
+        TickerInfo(
+            ticker='8361.T',
+            Asset_Class='Equities',
+            Sub_Class='Japan Equities',
+            Benchmark='TOPIX Banks Index',
+            Remarks='Japan regional banks'
+        ),
+        TickerInfo(
+            ticker='8714.T',
+            Asset_Class='Equities',
+            Sub_Class='Japan Equities',
+            Benchmark='TOPIX Banks Index',
+            Remarks='Japan regional banks'
+        ),
+        TickerInfo(
+            ticker='8366.T',
+            Asset_Class='Equities',
+            Sub_Class='Japan Equities',
+            Benchmark='TOPIX Banks Index',
+            Remarks='Japan regional banks'
+        ),
+        TickerInfo(
+            ticker='5831.T',
+            Asset_Class='Equities',
+            Sub_Class='Japan Equities',
+            Benchmark='TOPIX Banks Index',
+            Remarks='Japan regional banks'
+        ),
+    ]
