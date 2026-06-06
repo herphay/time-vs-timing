@@ -88,8 +88,8 @@ def push_ticker_data(data: list[tuple]) -> bool:
         with con:
             con.executemany(insertion_sql, data)
         return True
-    except sqlite3.Error:
-        print('Data insert error')
+    except sqlite3.Error as e:
+        print(f'Data insert error: {e}')
         return False
     finally:
         con.close()
@@ -272,6 +272,48 @@ def delete_ticker_data(
             else:
                 print(f"{ticker} don't exist in the database")
     if con: con.close()
+
+
+def currency_to_db(
+        ticker: str = 'CNYHKD',
+        source_csv: str = r'/Users/herphaylim/Downloads/CNY_HKD Historical Data.csv',
+    ) -> None:
+    """
+    ticker: the FX currency pair, act as ticker name
+    """
+    # Clear the data first
+    delete_ticker_data([ticker])
+
+    new_data = pd.read_csv(source_csv)
+    new_data = new_data[['Date', 'Open', 'High', 'Low', 'Price', 'Vol.']]
+    new_data.columns = ['Date', 'Open', 'High', 'Low', 'Close', 'Volume']
+    new_data['Adj Close'] = new_data['Close']
+    new_data['Dividends'] = 0.0
+    new_data['Stock Splits'] = 0.0
+    new_data['Volume'] = 0.0
+
+    new_data['Date'] = pd.to_datetime(new_data['Date']).dt.strftime('%Y-%m-%d')
+
+    if not (ticker_id := pull_ticker_id(ticker)):
+        add_ticker(ticker)
+        ticker_id = pull_ticker_id(ticker)
+
+    # Add in ticker_id
+    new_data['ticker_id'] = ticker_id
+
+    first_date = new_data['Date'].min()
+    last_date  = new_data['Date'].max()
+
+    # ensure all required columns are persent and in the right order
+    new_data = new_data[['ticker_id', 'Date', 'Open', 'High',  
+                         'Low', 'Close', 'Adj Close', 'Volume',
+                          'Dividends', 'Stock Splits']]
+
+    if not push_ticker_data(list(new_data.itertuples(index=False, name=None))):
+        print(f'Data for {ticker} not update')
+    else:
+        print(f'Successfully updated database with daily prices in range ' + 
+              f'{first_date} to {last_date} for FX pair: {ticker}')
 
 
 if __name__ == '__main__':

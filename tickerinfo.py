@@ -383,3 +383,49 @@ def get_jp_mid_financial() -> list[TickerInfo]:
             Remarks='Japan regional banks'
         ),
     ]
+
+def get_pairs_1() -> list[TickerInfo]:
+    return [
+        TickerInfo(
+            ticker='3396.HK',
+            Asset_Class='Equities',
+            Sub_Class='HKSE Equities',
+            Benchmark='NA',
+            Remarks='Legend Holdings (Lenovo majority holder)'
+        ),
+        TickerInfo(
+            ticker='0992.HK',
+            Asset_Class='Equities',
+            Sub_Class='HKSE Equities',
+            Benchmark='NA',
+            Remarks='Lenovo'
+        ),
+        TickerInfo(
+            ticker='0148.HK',
+            Asset_Class='Equities',
+            Sub_Class='HKSE Equities',
+            Benchmark='NA',
+            Remarks='Kingboard Holdings (Laminates majority holder)'
+        ),
+        TickerInfo(
+            ticker='1888.HK',
+            Asset_Class='Equities',
+            Sub_Class='HKSE Equities',
+            Benchmark='NA',
+            Remarks='Kingboard Laminates'
+        ),
+        TickerInfo(
+            ticker='300750.SZ',
+            Asset_Class='Equities',
+            Sub_Class='HKSE Equities',
+            Benchmark='NA',
+            Remarks='CATL A-share'
+        ),
+        TickerInfo(
+            ticker='3750.HK',
+            Asset_Class='Equities',
+            Sub_Class='HKSE Equities',
+            Benchmark='NA',
+            Remarks='CATL H-share'
+        ),
+    ]
