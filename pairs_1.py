@@ -1,0 +1,166 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.dates as mdates
+
+import statsmodels.api as sm
+from statsmodels.tsa.stattools import adfuller
+
+from helpers import ticker_data2df
+
+def catl():
+    catl = ticker_data2df(['300750.SZ', '3750.HK', 'CNYHKD=X'])
+    catl.columns = ['SZ_A', 'HK_H', 'CNYHKD']
+
+    catl['SZ_A'] = catl['SZ_A'] * catl['CNYHKD']
+
+    catl['premium'] = catl['HK_H'] / catl['SZ_A'] - 1
+
+    plt.figure()
+    ax1 = catl['premium'].plot()
+    
+    ax1.minorticks_on()
+    ax1.grid(which='major', color='dimgray', alpha=0.75)
+    ax1.grid(which='minor', color='gray', alpha=0.2)
+    date_form = mdates.DateFormatter('%Y-%m-%d')
+    ax1.xaxis.set_major_formatter(date_form)
+    ax1.set_title('CATL H to A premium (nominal price)')
+
+    spread = catl['premium']
+
+    calculate_cointegration(spread)
+    print('\n', '#' * 45, '\n')
+    half_life = calculate_halflife(spread)
+    catl['z_score'], catl['rolling_vol'] = calculate_zscore(spread, window=round(half_life))
+    max_drawdown, min_premium = calculate_maximum_adverse_excursion(spread)
+    print('\n', '#' * 45, '\n')
+
+    print('Previous 15 days A/H premium')
+    print(catl[-15:])
+
+    # Find the payout ratio:
+    # PnL = V0 * (PA1 / PA0) * [(R0 - R1) / (1 + R0)]
+    # V0 is single leg size
+    # PA0, PA1 is price of A share on entry and exit accordingly
+    # R0, R1 is the price premium on entry and exit accordingly
+    current_premium = catl['premium'].iloc[-1]
+    exit_premiums = np.arange(round(min_premium, 2), 
+                              round(current_premium + max_drawdown + 0.01, 2), 
+                              step=0.01)
+    # Assumes no price appreciation/depreciation of the underyling
+    beta_neutral_payout = (current_premium - exit_premiums) / (1 + current_premium)
+    plt.figure()
+    plt.plot(exit_premiums, beta_neutral_payout, label='payout')
+    plt.plot([current_premium] * len(exit_premiums), beta_neutral_payout, 
+             label='Current premium', linestyle='--', alpha=0.5)
+    plt.plot([min_premium] * len(exit_premiums), beta_neutral_payout,
+             label=f'Historical min ({(current_premium - min_premium) / (1 + current_premium):.2%} gain)', 
+             linestyle='--', alpha=0.5, color='limegreen')
+    max_premium = catl['premium'].max()
+    plt.plot([max_premium] * len(exit_premiums), beta_neutral_payout,
+             label=f'Historical max ({(max_premium - current_premium) / (1 + current_premium):.2%} loss)', 
+             linestyle='--', alpha=0.5, color='red')
+    plt.title(f'PnL curve - {0.01 / (1 + current_premium):.3%} delta per % spread move')
+    plt.minorticks_on()
+    plt.grid(which='major', color='dimgray', alpha=0.75)
+    plt.grid(which='minor', color='gray', alpha=0.2)
+    plt.legend()
+
+    return catl
+
+def calculate_cointegration(
+        series: pd.Series
+    ):
+    # Perform Augmented Dickey-Fuller test
+    adf_result = adfuller(series.dropna())
+    
+    adf_statistic = adf_result[0]
+    p_value = adf_result[1]
+    critical_values = adf_result[4]
+    
+    print(f"ADF Statistic: {adf_statistic:.4f}")
+    print(f"P-Value: {p_value:.4f}")
+    print("Critical Values:")
+    for key, value in critical_values.items():
+        print(f"  {key}: {value:.4f}")
+        
+    if p_value < 0.05:
+        print("Conclusion: The series is stationary (Cointegrated).")
+    else:
+        print("Conclusion: The series is non-stationary (Risk of permanent divergence).")
+
+
+def calculate_halflife(
+        series: pd.Series
+    ):
+    # Calculate the lagged series and the change in the series
+    series_lag = series.shift(1).dropna()
+    series_diff = series.diff().dropna()
+    
+    # Align the data after dropping NaNs
+    df_temp = pd.concat([series_lag, series_diff], axis=1)
+    df_temp.columns = ['lag', 'diff']
+    
+    # Add a constant for the OLS regression
+    X = sm.add_constant(df_temp['lag'])
+    y = df_temp['diff']
+    
+    # Fit the OLS model
+    model = sm.OLS(y, X).fit()
+    
+    # Extract the lambda (coefficient of the lagged spread)
+    lambda_val = model.params['lag']
+    
+    # Calculate half-life
+    half_life = -np.log(2) / lambda_val
+    
+    print(f"Mean Reversion Lambda: {lambda_val:.4f}")
+    print(f"Half-Life: {half_life:.2f} periods (days)")
+    
+    return half_life
+
+
+def calculate_zscore(
+        series: pd.Series, 
+        window: int = 20
+    ):
+    # Calculate rolling mean and standard deviation
+    rolling_mean = series.rolling(window=window).mean()
+    rolling_std = series.rolling(window=window).std()
+    
+    # Calculate Z-score
+    z_score = (series - rolling_mean) / rolling_std
+    
+    return z_score, rolling_std
+
+
+def calculate_maximum_adverse_excursion(
+        series: pd.Series,
+        show_details: bool = False
+    ):
+    # For an arbitrageur shorting the premium, risk is when the premium goes UP.
+    # We calculate the max peak-to-trough expansion in the premium.
+    
+    # Calculate the running minimum (best entry point for a blowout)
+    series = series.iloc[29:]
+    running_min = series.cummin()
+    if show_details:
+        print('Cumulative min premium')
+        print(running_min, '\n')
+    
+    # Calculate the expansion from the running minimum
+    drawdown = series - running_min
+    if show_details:
+        print('Drawdown to the cummin')
+        print(drawdown, '\n')
+    
+    # Find the maximum expansion
+    max_drawdown = drawdown.max()
+    
+    print(f'Running minimum currently is: {running_min.iloc[-1] * 100:.2f}% occuring on ' + 
+          f'{series.idxmin().strftime('%Y-%m-%d')}')
+    print(f'Max of {series[drawdown.idxmax()] * 100:.2f}% happens on ' +
+          f'{drawdown.idxmax().strftime('%Y-%m-%d')}')
+    print(f"Maximum Spread Expansion (Drawdown Risk): +{max_drawdown * 100:.2f}%")
+    
+    return max_drawdown, running_min.iloc[-1]

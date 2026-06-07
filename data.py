@@ -279,6 +279,7 @@ def currency_to_db(
         source_csv: str = r'/Users/herphaylim/Downloads/CNY_HKD Historical Data.csv',
     ) -> None:
     """
+    ONLY FOR USE FOR investing.com Currency data
     ticker: the FX currency pair, act as ticker name
     """
     # Clear the data first
