@@ -68,6 +68,40 @@ def catl():
 
     return catl
 
+
+def legend_lenovo(
+        start: str = '2023-04-01'
+    ):
+    """Legend Holding vs Lenovo pairs trade"""
+    lenovo = ticker_data2df(['3396.HK', '0992.HK'], start=start)
+    lenovo.columns = ['Legend', 'Lenovo']
+
+    # shares_outstanding = np.array([2_356_230_000, 12_404_659_302])
+    # lenovo[['Legend_NAV', 'Lenovo_NAV']] = lenovo[['Legend', 'Lenovo']] * shares_outstanding
+    # lenovo['holding_NAV'] = lenovo['Lenovo_NAV'] * 0.3141
+
+    lenovo['discount_ratio'] = 1 - lenovo['Legend'] / (lenovo['Lenovo'] * 0.3141 * 
+                                                       12_404_659_302 / 2_356_230_000)
+    
+    lenovo['discount_amt'] = (lenovo['Lenovo'] * 0.3141 * 
+                              12_404_659_302 / 2_356_230_000) - lenovo['Legend']
+    
+    fig, ax = plt.subplots(3,1,figsize=(6.4, 10))
+
+    (lenovo[['Legend', 'Lenovo']] / lenovo[['Legend', 'Lenovo']].iloc[0]).plot(ax=ax[0], title='Legend vs Lenovo')
+    lenovo['discount_ratio'].plot(ax=ax[1], title='Legend discount ratio')
+    lenovo['discount_amt'].plot(ax=ax[2], title='Legend discount amount')
+
+    for a in ax:
+        a.minorticks_on()
+        a.grid(which='major', color='dimgray', alpha=0.75)
+        a.grid(which='minor', color='gray', alpha=0.2)
+        print(a)
+    plt.tight_layout()
+
+    return lenovo
+
+
 def calculate_cointegration(
         series: pd.Series
     ):
