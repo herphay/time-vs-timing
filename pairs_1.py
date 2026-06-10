@@ -80,11 +80,11 @@ def legend_lenovo(
     # lenovo[['Legend_NAV', 'Lenovo_NAV']] = lenovo[['Legend', 'Lenovo']] * shares_outstanding
     # lenovo['holding_NAV'] = lenovo['Lenovo_NAV'] * 0.3141
 
-    lenovo['discount_ratio'] = 1 - lenovo['Legend'] / (lenovo['Lenovo'] * 0.3141 * 
-                                                       12_404_659_302 / 2_356_230_000)
+    NAVratio = 0.3141 * 12_404_659_302 / 2_356_230_000
+
+    lenovo['discount_ratio'] = 1 - lenovo['Legend'] / (lenovo['Lenovo'] * NAVratio)
     
-    lenovo['discount_amt'] = (lenovo['Lenovo'] * 0.3141 * 
-                              12_404_659_302 / 2_356_230_000) - lenovo['Legend']
+    lenovo['discount_amt'] = (lenovo['Lenovo'] * NAVratio) - lenovo['Legend']
     
     fig, ax = plt.subplots(3,1,figsize=(6.4, 10))
 
@@ -96,9 +96,86 @@ def legend_lenovo(
         a.minorticks_on()
         a.grid(which='major', color='dimgray', alpha=0.75)
         a.grid(which='minor', color='gray', alpha=0.2)
+    plt.tight_layout()
+
+    calculate_cointegration(lenovo['discount_ratio'])
+    print('\n', '#' * 45, '\n')
+    half_life = calculate_halflife(lenovo['discount_ratio'])
+    lenovo['z_score'], lenovo['rolling_vol'] = calculate_zscore(lenovo['discount_ratio'], 
+                                                                window=round(half_life))
+    max_drawdown, min_premium = calculate_maximum_adverse_excursion(lenovo['discount_ratio'])
+    print('\n', '#' * 45, '\n')
+
+    print('PnL Formula')
+    print('PnL = Single leg Capital * dS * P_hold_0 / NAVratio / P_sub_0 * hold_return')
+    current_spread = lenovo['discount_ratio'].iloc[-1]
+    max_spread = lenovo['discount_ratio'].max()
+    stop_spread = max_spread - current_spread
+    print(f'Current Spread: {current_spread:.2%} vs Peak Spread: {max_spread:.2%}')
+    print(f'The NAV Ratio is: {NAVratio:.2f}\n')
+
+    unit_PnL = 0.01 * lenovo['Legend'].iloc[-1] / lenovo['Lenovo'].iloc[-1] / NAVratio * 1000
+
+    print(f'Unit PnL per % per k single leg capital is: ${unit_PnL:.2f} HKD')
+    print('### Unit PnL scales by Holding company returns too (end price/start price ratio) ###')
+
+    print(f'Potential loss if expand to max ({stop_spread:.2%}) is ' + 
+          f'${100 * stop_spread * unit_PnL:.2f} HKD per k')
+
+    return lenovo
+
+
+def kingboard(
+        start: str = None
+    ):
+    """Kingboard Holdings vs Kingboard Laminates pair trade"""
+    lenovo = ticker_data2df(['0148.HK', '1888.HK'], start=start)
+    lenovo.columns = ['Holdings', 'Laminates']
+
+    NAVratio = 0.711 * 3_135_325_000 / 1_108_311_736
+
+    lenovo['discount_ratio'] = 1 - lenovo['Holdings'] / (lenovo['Laminates'] * NAVratio)
+    
+    lenovo['discount_amt'] = (lenovo['Laminates'] * NAVratio) - lenovo['Holdings']
+    
+    fig, ax = plt.subplots(3,1,figsize=(6.4, 10))
+
+    (lenovo[['Holdings', 'Laminates']] / 
+     lenovo[['Holdings', 'Laminates']].iloc[0]).plot(ax=ax[0], title='Holdings vs Laminate')
+    lenovo['discount_ratio'].plot(ax=ax[1], title='Kingboard discount ratio')
+    lenovo['discount_amt'].plot(ax=ax[2], title='Kingboard discount amount')
+
+    for a in ax:
+        a.minorticks_on()
+        a.grid(which='major', color='dimgray', alpha=0.75)
+        a.grid(which='minor', color='gray', alpha=0.2)
         print(a)
     plt.tight_layout()
 
+    calculate_cointegration(lenovo['discount_ratio'])
+    print('\n', '#' * 45, '\n')
+    half_life = calculate_halflife(lenovo['discount_ratio'])
+    lenovo['z_score'], lenovo['rolling_vol'] = calculate_zscore(lenovo['discount_ratio'], 
+                                                                window=round(half_life))
+    max_drawdown, min_premium = calculate_maximum_adverse_excursion(lenovo['discount_ratio'])
+    print('\n', '#' * 45, '\n')
+
+    print('PnL Formula')
+    print('PnL = Single leg Capital * dS * P_hold_0 / NAVratio / P_sub_0 * hold_return')
+    current_spread = lenovo['discount_ratio'].iloc[-1]
+    max_spread = lenovo['discount_ratio'].max()
+    stop_spread = max_spread - current_spread
+    print(f'Current Spread: {current_spread:.2%} vs Peak Spread: {max_spread:.2%}')
+    print(f'The NAV Ratio is: {NAVratio:.2f}\n')
+
+    unit_PnL = 0.01 * lenovo['Holdings'].iloc[-1] / lenovo['Laminates'].iloc[-1] / NAVratio * 1000
+
+    print(f'Unit PnL per % per k single leg capital is: ${unit_PnL:.2f} HKD')
+    print('### Unit PnL scales by Holding company returns too (end price/start price ratio) ###')
+
+    print(f'Potential loss if expand to max ({stop_spread:.2%}) is ' + 
+          f'${100 * stop_spread * unit_PnL:.2f} HKD per k')
+    
     return lenovo
 
 
