@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+from matplotlib.colors import TwoSlopeNorm
+
 
 import statsmodels.api as sm
 from statsmodels.tsa.stattools import adfuller
@@ -70,7 +72,10 @@ def catl():
 
 
 def legend_lenovo(
-        start: str = '2023-04-01'
+        start: str = '2023-04-01',
+        directional_exp: float = 0.0017,
+        ds_min: float = -0.15,
+        ds_max: float = 0.15,
     ):
     """Legend Holding vs Lenovo pairs trade"""
     lenovo = ticker_data2df(['3396.HK', '0992.HK'], start=start)
@@ -106,27 +111,51 @@ def legend_lenovo(
     max_drawdown, min_premium = calculate_maximum_adverse_excursion(lenovo['discount_ratio'])
     print('\n', '#' * 45, '\n')
 
-    print('PnL Formula')
-    print('PnL = Single leg Capital * dS * P_hold_0 / NAVratio / P_sub_0 * hold_return')
+    print('PnL Formula (Spread term)')
+    print('PnL = ds * long leg Capital *  NAVratio * P_sub_0 / P_hold_0 * sub_return')
     current_spread = lenovo['discount_ratio'].iloc[-1]
     max_spread = lenovo['discount_ratio'].max()
     stop_spread = max_spread - current_spread
     print(f'Current Spread: {current_spread:.2%} vs Peak Spread: {max_spread:.2%}')
     print(f'The NAV Ratio is: {NAVratio:.2f}\n')
 
-    unit_PnL = 0.01 * lenovo['Legend'].iloc[-1] / lenovo['Lenovo'].iloc[-1] / NAVratio * 1000
+    unit_PnL = 0.01 * NAVratio * lenovo['Lenovo'].iloc[-1] / lenovo['Legend'].iloc[-1] * 1000
 
-    print(f'Unit PnL per % per k single leg capital is: ${unit_PnL:.2f} HKD')
-    print('### Unit PnL scales by Holding company returns too (end price/start price ratio) ###')
+    print(f'Unit PnL per % per k long leg capital is: ${unit_PnL:.2f} HKD')
+    print('### Unit PnL scales by Subsidiary company returns too (end price/start price ratio) ###')
 
     print(f'Potential loss if expand to max ({stop_spread:.2%}) is ' + 
           f'${100 * stop_spread * unit_PnL:.2f} HKD per k')
+    
+    print('\nBut there will still be a directional exposure, we define i as % of long exposure')
+    print('Directional PnL component = i * long leg capital * (sub_return - 1)')
+    print('# Directional exposure if shorting less than 100% of long leg can be thought of as ' +
+          'shorting 100% of long leg then long x% more of the short leg (+ve i)')
+    # plt.figure()
+    ds = np.arange(ds_min, ds_max, 0.01)
+    Rb = np.arange(0.5, 1.51, 0.01)
+
+    ds, Rb = np.meshgrid(ds, Rb)
+    pnl_grid = -unit_PnL * ds * 100 * Rb + directional_exp * 1000 * (Rb - 1)
+
+    fig, ax = plt.subplots(subplot_kw={"projection": "3d"}, figsize=(6, 6))
+    norm = TwoSlopeNorm(vmin=pnl_grid.min(), vcenter=0.0, vmax=pnl_grid.max())
+
+    ax.plot_surface(ds, Rb, pnl_grid, cmap="RdYlGn", norm=norm, edgecolor='none', antialiased=True)
+    ax.set_xlabel('ds (spread delta)')
+    ax.set_ylabel('Rb (return of short leg)')
+    ax.set_zlabel('PnL per k of long leg', labelpad=6)
+    ax.set_box_aspect(None, zoom=0.9) 
+    plt.tight_layout()
 
     return lenovo
 
 
 def kingboard(
-        start: str = None
+        start: str = None,
+        directional_exp: float = -0.1,
+        ds_min: float = -0.3,
+        ds_max: float = 0.3,
     ):
     """Kingboard Holdings vs Kingboard Laminates pair trade"""
     lenovo = ticker_data2df(['0148.HK', '1888.HK'], start=start)
@@ -141,7 +170,8 @@ def kingboard(
     fig, ax = plt.subplots(3,1,figsize=(6.4, 10))
 
     (lenovo[['Holdings', 'Laminates']] / 
-     lenovo[['Holdings', 'Laminates']].iloc[0]).plot(ax=ax[0], title='Holdings vs Laminate')
+     lenovo[['Holdings', 'Laminates']].iloc[0]).plot(ax=ax[0], 
+                                                     title='Kingboard Holdings vs Laminate')
     lenovo['discount_ratio'].plot(ax=ax[1], title='Kingboard discount ratio')
     lenovo['discount_amt'].plot(ax=ax[2], title='Kingboard discount amount')
 
@@ -160,25 +190,47 @@ def kingboard(
     max_drawdown, min_premium = calculate_maximum_adverse_excursion(lenovo['discount_ratio'])
     print('\n', '#' * 45, '\n')
 
-    print('PnL Formula')
-    print('PnL = Single leg Capital * dS * P_hold_0 / NAVratio / P_sub_0 * hold_return')
+    print('PnL Formula (Spread term)')
+    print('PnL = ds * long leg Capital *  NAVratio * P_sub_0 / P_hold_0 * sub_return')
     current_spread = lenovo['discount_ratio'].iloc[-1]
     max_spread = lenovo['discount_ratio'].max()
     stop_spread = max_spread - current_spread
     print(f'Current Spread: {current_spread:.2%} vs Peak Spread: {max_spread:.2%}')
     print(f'The NAV Ratio is: {NAVratio:.2f}\n')
 
-    unit_PnL = 0.01 * lenovo['Holdings'].iloc[-1] / lenovo['Laminates'].iloc[-1] / NAVratio * 1000
+    unit_PnL = 0.01 * NAVratio * lenovo['Laminates'].iloc[-1] / lenovo['Holdings'].iloc[-1] * 1000
 
-    print(f'Unit PnL per % per k single leg capital is: ${unit_PnL:.2f} HKD')
-    print('### Unit PnL scales by Holding company returns too (end price/start price ratio) ###')
+    print(f'Unit PnL per % per k long leg capital is: ${unit_PnL:.2f} HKD')
+    print('### Unit PnL scales by Subsidiary company returns too (end price/start price ratio) ###')
 
     print(f'Potential loss if expand to max ({stop_spread:.2%}) is ' + 
           f'${100 * stop_spread * unit_PnL:.2f} HKD per k')
     
+    print('\nBut there will still be a directional exposure, we define i as % of long exposure')
+    print('Directional PnL component = i * long leg capital * (sub_return - 1)')
+    print('# Directional exposure if shorting less than 100% of long leg can be thought of as ' +
+          'shorting 100% of long leg then long x% more of the short leg (+ve i)')
+    # plt.figure()
+    ds = np.arange(ds_min, ds_max, 0.01)
+    Rb = np.arange(0.5, 1.51, 0.01)
+
+    ds, Rb = np.meshgrid(ds, Rb)
+    pnl_grid = -unit_PnL * ds * 100 * Rb + directional_exp * 1000 * (Rb - 1)
+
+    fig, ax = plt.subplots(subplot_kw={"projection": "3d"}, figsize=(6, 6))
+    norm = TwoSlopeNorm(vmin=pnl_grid.min(), vcenter=0.0, vmax=pnl_grid.max())
+
+    ax.plot_surface(ds, Rb, pnl_grid, cmap="RdYlGn", norm=norm, edgecolor='none', antialiased=True)
+    ax.set_xlabel('ds (spread delta)')
+    ax.set_ylabel('Rb (return of short leg)')
+    ax.set_zlabel('PnL per k of long leg', labelpad=6)
+    ax.set_box_aspect(None, zoom=0.9) 
+    plt.tight_layout()
+
     return lenovo
 
 
+#%%
 def calculate_cointegration(
         series: pd.Series
     ):
